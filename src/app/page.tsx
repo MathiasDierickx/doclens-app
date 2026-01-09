@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { ApiHealthIndicator } from "@/components/ApiHealthIndicator";
 import { Sidebar } from "@/components/Sidebar";
 import { UploadArea } from "@/components/UploadArea";
-import { ChatArea } from "@/components/ChatArea";
+import { DocumentViewer } from "@/components/DocumentViewer";
 
 export default function Home() {
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
@@ -54,7 +54,7 @@ export default function Home() {
         {/* Content Area */}
         <main className="flex-1 overflow-hidden">
           {selectedDocumentId ? (
-            <ChatArea documentId={selectedDocumentId} />
+            <DocumentViewer documentId={selectedDocumentId} />
           ) : (
             <UploadArea onUploadComplete={handleSelectDocument} />
           )}

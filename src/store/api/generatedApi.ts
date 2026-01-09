@@ -6,6 +6,14 @@ const injectedRtkApi = api
   })
   .injectEndpoints({
     endpoints: (build) => ({
+      askQuestion: build.mutation<AskQuestionApiResponse, AskQuestionApiArg>({
+        query: (queryArg) => ({
+          url: `/documents/${queryArg.documentId}/ask`,
+          method: "POST",
+          body: queryArg.askRequest,
+        }),
+        invalidatesTags: ["Documents"],
+      }),
       getUploadUrl: build.mutation<GetUploadUrlApiResponse, GetUploadUrlApiArg>(
         {
           query: (queryArg) => ({
@@ -51,10 +59,24 @@ const injectedRtkApi = api
         }),
         providesTags: ["System"],
       }),
+      getIndexingStatus: build.query<
+        GetIndexingStatusApiResponse,
+        GetIndexingStatusApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/documents/${queryArg.documentId}/status`,
+        }),
+        providesTags: ["Documents"],
+      }),
     }),
     overrideExisting: false,
   });
 export { injectedRtkApi as api };
+export type AskQuestionApiResponse = unknown;
+export type AskQuestionApiArg = {
+  documentId: string;
+  askRequest: AskRequest;
+};
 export type GetUploadUrlApiResponse =
   /** status 200 Upload URL and document metadata */ UploadUrlResponse;
 export type GetUploadUrlApiArg = {
@@ -84,6 +106,13 @@ export type SayHelloApiResponse =
 export type SayHelloApiArg = {
   /** Name to greet */
   name?: string;
+};
+export type GetIndexingStatusApiResponse = unknown;
+export type GetIndexingStatusApiArg = {
+  documentId: string;
+};
+export type AskRequest = {
+  question?: string;
 };
 export type UploadUrlResponse = {
   documentId?: string;
@@ -117,10 +146,12 @@ export type HelloResponse = {
   timestamp?: string;
 };
 export const {
+  useAskQuestionMutation,
   useGetUploadUrlMutation,
   useListDocumentsQuery,
   useGetDocumentQuery,
   useDeleteDocumentMutation,
   useGetHealthQuery,
   useSayHelloQuery,
+  useGetIndexingStatusQuery,
 } = injectedRtkApi;

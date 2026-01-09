@@ -1,57 +1,106 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { useGetDocumentQuery } from "@/store/api/generatedApi";
+import { useAskQuestion, SourceReference } from "@/hooks/useAskQuestion";
 
 interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
-  sources?: { page: number; text: string }[];
+  sources?: SourceReference[];
+  isStreaming?: boolean;
 }
 
 interface ChatAreaProps {
   documentId: string;
+  /** Callback when a source citation is clicked (page is 0-indexed) */
+  onSourceClick?: (pageIndex: number) => void;
 }
 
-export function ChatArea({ documentId }: ChatAreaProps) {
-  const { data: document, isLoading: isLoadingDoc } = useGetDocumentQuery({ documentId });
+export function ChatArea({ documentId, onSourceClick }: ChatAreaProps) {
+  const { data: document, isLoading: isLoadingDoc } = useGetDocumentQuery({
+    documentId,
+  });
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(
+    null
+  );
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const { ask, isLoading } = useAskQuestion({
+    onChunk: (chunk) => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === streamingMessageId ? { ...m, content: m.content + chunk } : m
+        )
+      );
+    },
+    onSources: (sources) => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === streamingMessageId ? { ...m, sources } : m
+        )
+      );
+    },
+    onComplete: () => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === streamingMessageId ? { ...m, isStreaming: false } : m
+        )
+      );
+      setStreamingMessageId(null);
+    },
+    onError: (error) => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === streamingMessageId
+            ? {
+                ...m,
+                content: m.content || `Error: ${error}`,
+                isStreaming: false,
+              }
+            : m
+        )
+      );
+      setStreamingMessageId(null);
+    },
+  });
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
+    const question = input.trim();
+
     const userMessage: Message = {
       id: crypto.randomUUID(),
       role: "user",
-      content: input,
+      content: question,
     };
 
-    setMessages((prev) => [...prev, userMessage]);
-    setInput("");
-    setIsLoading(true);
+    const assistantMessageId = crypto.randomUUID();
+    const assistantMessage: Message = {
+      id: assistantMessageId,
+      role: "assistant",
+      content: "",
+      isStreaming: true,
+    };
 
-    // TODO: Replace with actual API call to Azure Function for Q&A
-    setTimeout(() => {
-      const assistantMessage: Message = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content:
-          "This is a placeholder response. The Q&A feature will be implemented with Azure Document Intelligence and Azure OpenAI.",
-        sources: [
-          { page: 1, text: "Example source text from page 1..." },
-          { page: 3, text: "Another relevant passage from page 3..." },
-        ],
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
-      setIsLoading(false);
-    }, 1000);
+    setMessages((prev) => [...prev, userMessage, assistantMessage]);
+    setStreamingMessageId(assistantMessageId);
+    setInput("");
+
+    await ask(documentId, question);
   };
 
   if (isLoadingDoc) {
@@ -69,7 +118,9 @@ export function ChatArea({ documentId }: ChatAreaProps) {
         <div className="flex items-center gap-3">
           <span className="text-2xl">📄</span>
           <div>
-            <h2 className="font-semibold">{document?.filename || "Document"}</h2>
+            <h2 className="font-semibold">
+              {document?.filename || "Document"}
+            </h2>
             <p className="text-xs text-muted-foreground">
               {document?.uploadedAt
                 ? new Date(document.uploadedAt).toLocaleDateString()
@@ -89,7 +140,9 @@ export function ChatArea({ documentId }: ChatAreaProps) {
             <div className="grid gap-3 sm:grid-cols-2 max-w-lg">
               <Card
                 className="cursor-pointer transition-colors hover:bg-muted/50"
-                onClick={() => setInput("What are the main findings of this document?")}
+                onClick={() =>
+                  setInput("What are the main findings of this document?")
+                }
               >
                 <CardContent className="p-4">
                   <p className="text-sm text-muted-foreground">
@@ -125,16 +178,42 @@ export function ChatArea({ documentId }: ChatAreaProps) {
                       : "bg-muted"
                   }`}
                 >
-                  <p className="whitespace-pre-wrap">{message.content}</p>
+                  {message.content ? (
+                    <p className="whitespace-pre-wrap">
+                      {message.content}
+                      {message.isStreaming && (
+                        <span className="inline-block w-2 h-4 ml-1 bg-current animate-pulse" />
+                      )}
+                    </p>
+                  ) : message.isStreaming ? (
+                    <div className="flex space-x-2">
+                      <div className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/50" />
+                      <div className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/50 [animation-delay:0.1s]" />
+                      <div className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/50 [animation-delay:0.2s]" />
+                    </div>
+                  ) : null}
 
                   {message.sources && message.sources.length > 0 && (
                     <div className="mt-4 space-y-2">
                       <p className="text-xs font-medium opacity-70">Sources:</p>
                       {message.sources.map((source, idx) => (
-                        <Card key={idx} className="bg-background/50">
+                        <Card
+                          key={idx}
+                          className={`bg-background/50 ${
+                            onSourceClick
+                              ? "cursor-pointer transition-colors hover:bg-background/80"
+                              : ""
+                          }`}
+                          onClick={() => onSourceClick?.(source.page - 1)}
+                        >
                           <CardHeader className="p-3 pb-1">
-                            <CardTitle className="text-xs font-medium">
+                            <CardTitle className="text-xs font-medium flex items-center gap-2">
                               Page {source.page}
+                              {onSourceClick && (
+                                <span className="text-[10px] text-muted-foreground">
+                                  Click to view
+                                </span>
+                              )}
                             </CardTitle>
                           </CardHeader>
                           <CardContent className="p-3 pt-0">
@@ -149,18 +228,7 @@ export function ChatArea({ documentId }: ChatAreaProps) {
                 </div>
               </div>
             ))}
-
-            {isLoading && (
-              <div className="flex justify-start">
-                <div className="max-w-[80%] rounded-lg bg-muted px-4 py-3">
-                  <div className="flex space-x-2">
-                    <div className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/50" />
-                    <div className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/50 [animation-delay:0.1s]" />
-                    <div className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/50 [animation-delay:0.2s]" />
-                  </div>
-                </div>
-              </div>
-            )}
+            <div ref={messagesEndRef} />
           </div>
         )}
       </div>

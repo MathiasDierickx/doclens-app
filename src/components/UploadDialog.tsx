@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useDispatch } from "react-redux";
 import {
   Dialog,
   DialogContent,
@@ -11,13 +12,14 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { useGetUploadUrlMutation } from "@/store/api/generatedApi";
+import { useGetUploadUrlMutation, api } from "@/store/api/generatedApi";
 
 interface UploadDialogProps {
   onUploadComplete?: () => void;
 }
 
 export function UploadDialog({ onUploadComplete }: UploadDialogProps) {
+  const dispatch = useDispatch();
   const [open, setOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -91,6 +93,10 @@ export function UploadDialog({ onUploadComplete }: UploadDialogProps) {
       });
 
       setUploadStatus("success");
+
+      // Invalidate documents cache to refresh the sidebar list
+      dispatch(api.util.invalidateTags(["Documents"]));
+
       onUploadComplete?.();
 
       // Close dialog after success
@@ -181,10 +187,10 @@ export function UploadDialog({ onUploadComplete }: UploadDialogProps) {
 
           {(uploadStatus === "getting-url" || uploadStatus === "uploading") && (
             <div className="space-y-4 py-4">
-              <div className="flex items-center gap-3">
-                <div className="text-2xl">📄</div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">
+              <div className="flex items-center gap-3 overflow-hidden">
+                <div className="text-2xl shrink-0">📄</div>
+                <div className="flex-1 min-w-0 overflow-hidden">
+                  <p className="text-sm font-medium truncate" title={selectedFile?.name}>
                     {selectedFile?.name}
                   </p>
                   <p className="text-xs text-muted-foreground">

@@ -1,41 +1,78 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useDispatch } from "react-redux";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { useGetUploadUrlMutation } from "@/store/api/generatedApi";
+import { useGetUploadUrlMutation, api } from "@/store/api/generatedApi";
+import { useIndexingStatus } from "@/hooks/useIndexingStatus";
 
 interface UploadAreaProps {
   onUploadComplete: (documentId: string) => void;
 }
 
+type UploadPhase =
+  | "idle"
+  | "getting-url"
+  | "uploading"
+  | "indexing"
+  | "ready"
+  | "error";
+
 export function UploadArea({ onUploadComplete }: UploadAreaProps) {
+  const dispatch = useDispatch();
   const [isDragging, setIsDragging] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadStatus, setUploadStatus] = useState<
-    "idle" | "getting-url" | "uploading" | "success" | "error"
-  >("idle");
+  const [phase, setPhase] = useState<UploadPhase>("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [documentId, setDocumentId] = useState<string | null>(null);
 
   const [getUploadUrl] = useGetUploadUrlMutation();
 
+  const {
+    status: indexingStatus,
+    progress: indexingProgress,
+    message: indexingMessage,
+    isComplete: indexingComplete,
+    isError: indexingError,
+    error: indexingErrorMessage,
+  } = useIndexingStatus(documentId, {
+    enabled: phase === "indexing",
+    onComplete: () => {
+      setPhase("ready");
+      // Invalidate documents cache to refresh the sidebar list
+      dispatch(api.util.invalidateTags(["Documents"]));
+      // Navigate to the document after a brief delay
+      setTimeout(() => {
+        if (documentId) {
+          onUploadComplete(documentId);
+        }
+      }, 500);
+    },
+    onError: (error) => {
+      setErrorMessage(error);
+      setPhase("error");
+    },
+  });
+
   const resetState = () => {
     setUploadProgress(0);
-    setUploadStatus("idle");
+    setPhase("idle");
     setErrorMessage("");
     setSelectedFile(null);
+    setDocumentId(null);
   };
 
   const uploadFile = async (file: File) => {
     if (!file.name.toLowerCase().endsWith(".pdf")) {
       setErrorMessage("Only PDF files are allowed");
-      setUploadStatus("error");
+      setPhase("error");
       return;
     }
 
     setSelectedFile(file);
-    setUploadStatus("getting-url");
+    setPhase("getting-url");
     setErrorMessage("");
 
     try {
@@ -45,7 +82,8 @@ export function UploadArea({ onUploadComplete }: UploadAreaProps) {
         throw new Error("No upload URL received");
       }
 
-      setUploadStatus("uploading");
+      setDocumentId(result.documentId);
+      setPhase("uploading");
 
       const xhr = new XMLHttpRequest();
 
@@ -72,18 +110,14 @@ export function UploadArea({ onUploadComplete }: UploadAreaProps) {
         xhr.send(file);
       });
 
-      setUploadStatus("success");
-
-      // Navigate to the document after a brief delay
-      setTimeout(() => {
-        onUploadComplete(result.documentId!);
-      }, 500);
+      // Upload complete, now wait for indexing
+      setPhase("indexing");
     } catch (error) {
       console.error("Upload error:", error);
       setErrorMessage(
         error instanceof Error ? error.message : "Upload failed"
       );
-      setUploadStatus("error");
+      setPhase("error");
     }
   };
 
@@ -114,6 +148,30 @@ export function UploadArea({ onUploadComplete }: UploadAreaProps) {
     }
   };
 
+  // Calculate total progress across upload and indexing phases
+  const getTotalProgress = () => {
+    if (phase === "getting-url") return 0;
+    if (phase === "uploading") return Math.round(uploadProgress * 0.3); // Upload is 30%
+    if (phase === "indexing") return 30 + Math.round(indexingProgress * 0.7); // Indexing is 70%
+    if (phase === "ready") return 100;
+    return 0;
+  };
+
+  const getStatusMessage = () => {
+    switch (phase) {
+      case "getting-url":
+        return "Preparing upload...";
+      case "uploading":
+        return `Uploading... ${uploadProgress}%`;
+      case "indexing":
+        return indexingMessage || `Processing... ${indexingProgress}%`;
+      case "ready":
+        return "Ready! Opening document...";
+      default:
+        return "";
+    }
+  };
+
   return (
     <div className="flex flex-col items-center justify-center h-full p-8">
       <div className="max-w-md w-full text-center">
@@ -123,7 +181,7 @@ export function UploadArea({ onUploadComplete }: UploadAreaProps) {
           Upload a PDF document to start asking questions about its content.
         </p>
 
-        {uploadStatus === "idle" && (
+        {phase === "idle" && (
           <div
             className={`border-2 border-dashed rounded-lg p-12 transition-colors ${
               isDragging
@@ -152,35 +210,79 @@ export function UploadArea({ onUploadComplete }: UploadAreaProps) {
           </div>
         )}
 
-        {(uploadStatus === "getting-url" || uploadStatus === "uploading") && (
-          <div className="border rounded-lg p-8 space-y-4">
-            <div className="flex items-center gap-3 justify-center">
-              <div className="text-2xl">📄</div>
-              <div className="text-left">
-                <p className="text-sm font-medium truncate max-w-[200px]">
+        {(phase === "getting-url" ||
+          phase === "uploading" ||
+          phase === "indexing") && (
+          <div className="border rounded-lg p-8 space-y-4 overflow-hidden">
+            <div className="flex items-center gap-3 justify-center overflow-hidden">
+              <div className="text-2xl shrink-0">📄</div>
+              <div className="text-left min-w-0 overflow-hidden">
+                <p
+                  className="text-sm font-medium truncate"
+                  title={selectedFile?.name}
+                >
                   {selectedFile?.name}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {uploadStatus === "getting-url"
-                    ? "Preparing upload..."
-                    : `Uploading... ${uploadProgress}%`}
+                  {getStatusMessage()}
                 </p>
               </div>
             </div>
-            <Progress value={uploadProgress} className="h-2" />
+            <Progress value={getTotalProgress()} className="h-2" />
+            {phase === "indexing" && (
+              <div className="flex justify-center gap-1 pt-2">
+                <StepIndicator
+                  label="Upload"
+                  active={false}
+                  complete={true}
+                />
+                <StepIndicator
+                  label="Extract"
+                  active={indexingStatus?.status === "extracting"}
+                  complete={
+                    indexingStatus?.status !== "pending" &&
+                    indexingStatus?.status !== "extracting"
+                  }
+                />
+                <StepIndicator
+                  label="Chunk"
+                  active={indexingStatus?.status === "chunking"}
+                  complete={
+                    indexingStatus?.status !== "pending" &&
+                    indexingStatus?.status !== "extracting" &&
+                    indexingStatus?.status !== "chunking"
+                  }
+                />
+                <StepIndicator
+                  label="Embed"
+                  active={indexingStatus?.status === "embedding"}
+                  complete={
+                    indexingStatus?.status !== "pending" &&
+                    indexingStatus?.status !== "extracting" &&
+                    indexingStatus?.status !== "chunking" &&
+                    indexingStatus?.status !== "embedding"
+                  }
+                />
+                <StepIndicator
+                  label="Index"
+                  active={indexingStatus?.status === "indexing"}
+                  complete={indexingStatus?.status === "ready"}
+                />
+              </div>
+            )}
           </div>
         )}
 
-        {uploadStatus === "success" && (
+        {phase === "ready" && (
           <div className="border rounded-lg p-8">
             <div className="text-4xl mb-2">✅</div>
             <p className="text-sm font-medium text-green-600">
-              Upload complete! Opening document...
+              Ready! Opening document...
             </p>
           </div>
         )}
 
-        {uploadStatus === "error" && (
+        {phase === "error" && (
           <div className="border rounded-lg p-8 space-y-4">
             <div className="text-4xl mb-2">❌</div>
             <p className="text-sm font-medium text-red-600">{errorMessage}</p>
@@ -190,6 +292,37 @@ export function UploadArea({ onUploadComplete }: UploadAreaProps) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function StepIndicator({
+  label,
+  active,
+  complete,
+}: {
+  label: string;
+  active: boolean;
+  complete: boolean;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-1 px-2">
+      <div
+        className={`w-2 h-2 rounded-full transition-colors ${
+          complete
+            ? "bg-green-500"
+            : active
+              ? "bg-primary animate-pulse"
+              : "bg-muted-foreground/30"
+        }`}
+      />
+      <span
+        className={`text-[10px] ${
+          active ? "text-primary font-medium" : "text-muted-foreground"
+        }`}
+      >
+        {label}
+      </span>
     </div>
   );
 }
