@@ -107,6 +107,22 @@ export function ChatArea({ documentId, onSourceClick }: ChatAreaProps) {
         id: `history-${chatHistoryData.sessionId}-${idx}`,
         role: msg.role as "user" | "assistant",
         content: msg.content || "",
+        // Load sources for assistant messages from history
+        sources: msg.sources?.map(s => ({
+          page: s.page ?? 0,
+          text: s.text ?? "",
+          positions: s.positions?.map(p => ({
+            pageNumber: p.pageNumber ?? 0,
+            boundingBox: p.boundingBox ? {
+              x: p.boundingBox.x ?? 0,
+              y: p.boundingBox.y ?? 0,
+              width: p.boundingBox.width ?? 0,
+              height: p.boundingBox.height ?? 0,
+            } : undefined,
+            charOffset: p.charOffset ?? 0,
+            charLength: p.charLength ?? 0,
+          })),
+        })),
       }));
       setMessages(loadedMessages);
       setCurrentSessionId(chatHistoryData.sessionId);

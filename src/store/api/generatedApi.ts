@@ -204,10 +204,28 @@ export type ChatSessionSummary = {
 export type ChatSessionsResponse = {
   sessions?: ChatSessionSummary[];
 };
+export type BoundingBox = {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+};
+export type TextPosition = {
+  pageNumber?: number;
+  boundingBox?: BoundingBox;
+  charOffset?: number;
+  charLength?: number;
+};
+export type SourceReference = {
+  page?: number;
+  text?: string;
+  positions?: TextPosition[] | null;
+};
 export type ChatMessageDto = {
   role?: string;
   content?: string;
   timestamp?: string;
+  sources?: SourceReference[] | null;
 };
 export type ChatHistoryResponse = {
   sessionId?: string;
