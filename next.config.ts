@@ -1,11 +1,20 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Turbopack config for dev and build
   turbopack: {
     resolveAlias: {
-      // Fix for pdfjs-dist trying to load Node.js canvas module
-      canvas: { browser: "" },
+      canvas: "./empty-module.js",
     },
+  },
+  // Webpack config as fallback
+  webpack: (config) => {
+    config.resolve.alias.canvas = false;
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      canvas: false,
+    };
+    return config;
   },
 };
 
