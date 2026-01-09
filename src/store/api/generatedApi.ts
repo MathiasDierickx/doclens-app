@@ -24,6 +24,10 @@ const injectedRtkApi = api
           providesTags: ["Documents"],
         },
       ),
+      getDocument: build.query<GetDocumentApiResponse, GetDocumentApiArg>({
+        query: (queryArg) => ({ url: `/documents/${queryArg.documentId}` }),
+        providesTags: ["Documents"],
+      }),
       deleteDocument: build.mutation<
         DeleteDocumentApiResponse,
         DeleteDocumentApiArg
@@ -60,6 +64,12 @@ export type GetUploadUrlApiArg = {
 export type ListDocumentsApiResponse =
   /** status 200 List of documents */ DocumentListResponse;
 export type ListDocumentsApiArg = void;
+export type GetDocumentApiResponse =
+  /** status 200 Document details */ DocumentInfo;
+export type GetDocumentApiArg = {
+  /** Document ID */
+  documentId: string;
+};
 export type DeleteDocumentApiResponse =
   /** status 200 Deletion confirmation */ DeleteDocumentResponse;
 export type DeleteDocumentApiArg = {
@@ -109,6 +119,7 @@ export type HelloResponse = {
 export const {
   useGetUploadUrlMutation,
   useListDocumentsQuery,
+  useGetDocumentQuery,
   useDeleteDocumentMutation,
   useGetHealthQuery,
   useSayHelloQuery,
