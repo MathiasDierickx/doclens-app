@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { ApiHealthIndicator } from "@/components/ApiHealthIndicator";
 
 interface Message {
   id: string;
@@ -54,7 +55,10 @@ export default function Home() {
       {/* Header */}
       <header className="border-b px-6 py-4">
         <div className="mx-auto flex max-w-4xl items-center justify-between">
-          <h1 className="text-xl font-semibold">DocLens</h1>
+          <div className="flex items-center gap-4">
+            <h1 className="text-xl font-semibold">DocLens</h1>
+            <ApiHealthIndicator />
+          </div>
           <Button variant="outline" size="sm">
             Upload PDF
           </Button>
