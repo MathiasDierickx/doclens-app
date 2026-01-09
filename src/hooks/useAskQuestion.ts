@@ -69,6 +69,7 @@ export function useAskQuestion(options: UseAskQuestionOptions = {}) {
         let buffer = "";
         let fullAnswer = "";
         let finalSources: SourceReference[] = [];
+        let currentEvent = "";
 
         while (true) {
           const { done, value } = await reader.read();
@@ -76,40 +77,42 @@ export function useAskQuestion(options: UseAskQuestionOptions = {}) {
 
           buffer += decoder.decode(value, { stream: true });
 
-          // Parse SSE events from buffer
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || ""; // Keep incomplete line in buffer
+          // Parse SSE events from buffer - split by double newline (SSE event separator)
+          const parts = buffer.split("\n\n");
+          buffer = parts.pop() || ""; // Keep incomplete event in buffer
 
-          let currentEvent = "";
-          for (const line of lines) {
-            if (line.startsWith("event: ")) {
-              currentEvent = line.slice(7);
-            } else if (line.startsWith("data: ")) {
-              const data = line.slice(6);
-              try {
-                const parsed = JSON.parse(data);
+          for (const part of parts) {
+            const lines = part.split("\n");
+            for (const line of lines) {
+              if (line.startsWith("event: ")) {
+                currentEvent = line.slice(7).trim();
+              } else if (line.startsWith("data: ")) {
+                const data = line.slice(6);
+                try {
+                  const parsed = JSON.parse(data);
 
-                switch (currentEvent) {
-                  case "chunk":
-                    fullAnswer += parsed.content || "";
-                    setAnswer(fullAnswer);
-                    onChunk?.(parsed.content || "");
-                    break;
-                  case "sources":
-                    finalSources = parsed.sources || [];
-                    setSources(finalSources);
-                    onSources?.(finalSources);
-                    break;
-                  case "done":
-                    onComplete?.({ answer: fullAnswer, sources: finalSources });
-                    break;
-                  case "error":
-                    setError(parsed.error || "Unknown error");
-                    onError?.(parsed.error || "Unknown error");
-                    break;
+                  switch (currentEvent) {
+                    case "chunk":
+                      fullAnswer += parsed.content || "";
+                      setAnswer(fullAnswer);
+                      onChunk?.(parsed.content || "");
+                      break;
+                    case "sources":
+                      finalSources = parsed.sources || [];
+                      setSources(finalSources);
+                      onSources?.(finalSources);
+                      break;
+                    case "done":
+                      onComplete?.({ answer: fullAnswer, sources: finalSources });
+                      break;
+                    case "error":
+                      setError(parsed.error || "Unknown error");
+                      onError?.(parsed.error || "Unknown error");
+                      break;
+                  }
+                } catch {
+                  // Ignore JSON parse errors for incomplete data
                 }
-              } catch {
-                // Ignore JSON parse errors for incomplete data
               }
             }
           }

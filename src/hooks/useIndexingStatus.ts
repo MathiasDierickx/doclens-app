@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 
 export type IndexingStatus =
   | "pending"
@@ -30,8 +30,20 @@ export function useIndexingStatus(
   const [status, setStatus] = useState<IndexingStatusEvent | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
-  const connect = useCallback(() => {
-    if (!documentId || !enabled) return;
+  // Use refs to store callbacks to prevent reconnection on callback changes
+  const onCompleteRef = useRef(onComplete);
+  const onErrorRef = useRef(onError);
+
+  // Keep refs up to date
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+    onErrorRef.current = onError;
+  }, [onComplete, onError]);
+
+  useEffect(() => {
+    if (!documentId || !enabled) {
+      return;
+    }
 
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
     const eventSource = new EventSource(
@@ -52,14 +64,14 @@ export function useIndexingStatus(
       setStatus(data);
       eventSource.close();
       setIsConnected(false);
-      onComplete?.();
+      onCompleteRef.current?.();
     });
 
     eventSource.addEventListener("error", (event) => {
       if (event instanceof MessageEvent) {
         const data = JSON.parse(event.data) as IndexingStatusEvent;
         setStatus(data);
-        onError?.(data.error || "Unknown error");
+        onErrorRef.current?.(data.error || "Unknown error");
       }
       eventSource.close();
       setIsConnected(false);
@@ -74,12 +86,7 @@ export function useIndexingStatus(
       eventSource.close();
       setIsConnected(false);
     };
-  }, [documentId, enabled, onComplete, onError]);
-
-  useEffect(() => {
-    const cleanup = connect();
-    return cleanup;
-  }, [connect]);
+  }, [documentId, enabled]); // Only reconnect when documentId or enabled changes
 
   return {
     status,
