@@ -19,6 +19,7 @@ export interface SourceReference {
 export interface AskQuestionResult {
   answer: string;
   sources: SourceReference[];
+  sessionId: string;
 }
 
 interface UseAskQuestionOptions {
@@ -34,9 +35,10 @@ export function useAskQuestion(options: UseAskQuestionOptions = {}) {
   const [answer, setAnswer] = useState("");
   const [sources, setSources] = useState<SourceReference[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
 
   const ask = useCallback(
-    async (documentId: string, question: string) => {
+    async (documentId: string, question: string, existingSessionId?: string) => {
       setIsLoading(true);
       setAnswer("");
       setSources([]);
@@ -52,7 +54,10 @@ export function useAskQuestion(options: UseAskQuestionOptions = {}) {
             headers: {
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({ question }),
+            body: JSON.stringify({
+              question,
+              sessionId: existingSessionId
+            }),
           }
         );
 
@@ -70,6 +75,7 @@ export function useAskQuestion(options: UseAskQuestionOptions = {}) {
         let fullAnswer = "";
         let finalSources: SourceReference[] = [];
         let currentEvent = "";
+        let newSessionId = existingSessionId || "";
 
         while (true) {
           const { done, value } = await reader.read();
@@ -103,7 +109,9 @@ export function useAskQuestion(options: UseAskQuestionOptions = {}) {
                       onSources?.(finalSources);
                       break;
                     case "done":
-                      onComplete?.({ answer: fullAnswer, sources: finalSources });
+                      newSessionId = parsed.sessionId || newSessionId;
+                      setSessionId(newSessionId);
+                      onComplete?.({ answer: fullAnswer, sources: finalSources, sessionId: newSessionId });
                       break;
                     case "error":
                       setError(parsed.error || "Unknown error");
@@ -134,6 +142,7 @@ export function useAskQuestion(options: UseAskQuestionOptions = {}) {
     setSources([]);
     setError(null);
     setIsLoading(false);
+    setSessionId(null);
   }, []);
 
   return {
@@ -143,5 +152,7 @@ export function useAskQuestion(options: UseAskQuestionOptions = {}) {
     answer,
     sources,
     error,
+    sessionId,
+    setSessionId,
   };
 }

@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { useGetDocumentQuery } from "@/store/api/generatedApi";
+import { useGetDocumentQuery, useGetChatSessionsQuery, useGetChatHistoryQuery } from "@/store/api/generatedApi";
 import { useAskQuestion, SourceReference } from "@/hooks/useAskQuestion";
 
 // Re-export for use in other components
@@ -28,12 +28,27 @@ export function ChatArea({ documentId, onSourceClick }: ChatAreaProps) {
   const { data: document, isLoading: isLoadingDoc } = useGetDocumentQuery({
     documentId,
   });
+
+  // Fetch existing chat sessions for this document
+  const { data: chatSessionsData } = useGetChatSessionsQuery({ documentId });
+
+  // Get the most recent session if one exists
+  const mostRecentSessionId = chatSessionsData?.sessions?.[0]?.sessionId;
+
+  // Fetch chat history for the most recent session
+  const { data: chatHistoryData, isLoading: isLoadingHistory } = useGetChatHistoryQuery(
+    { sessionId: mostRecentSessionId! },
+    { skip: !mostRecentSessionId }
+  );
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const streamingMessageIdRef = useRef<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const historyLoadedRef = useRef<string | null>(null);
 
-  const { ask, isLoading } = useAskQuestion({
+  const { ask, isLoading, sessionId: newSessionId, setSessionId } = useAskQuestion({
     onChunk: (chunk) => {
       const id = streamingMessageIdRef.current;
       if (!id) return;
@@ -52,7 +67,7 @@ export function ChatArea({ documentId, onSourceClick }: ChatAreaProps) {
         )
       );
     },
-    onComplete: () => {
+    onComplete: (result) => {
       const id = streamingMessageIdRef.current;
       if (!id) return;
       setMessages((prev) =>
@@ -61,6 +76,10 @@ export function ChatArea({ documentId, onSourceClick }: ChatAreaProps) {
         )
       );
       streamingMessageIdRef.current = null;
+      // Update the current session ID from the response
+      if (result.sessionId) {
+        setCurrentSessionId(result.sessionId);
+      }
     },
     onError: (error) => {
       const id = streamingMessageIdRef.current;
@@ -79,6 +98,29 @@ export function ChatArea({ documentId, onSourceClick }: ChatAreaProps) {
       streamingMessageIdRef.current = null;
     },
   });
+
+  // Load chat history when it becomes available
+  useEffect(() => {
+    if (chatHistoryData?.messages && chatHistoryData.sessionId && historyLoadedRef.current !== chatHistoryData.sessionId) {
+      historyLoadedRef.current = chatHistoryData.sessionId;
+      const loadedMessages: Message[] = chatHistoryData.messages.map((msg, idx) => ({
+        id: `history-${chatHistoryData.sessionId}-${idx}`,
+        role: msg.role as "user" | "assistant",
+        content: msg.content || "",
+      }));
+      setMessages(loadedMessages);
+      setCurrentSessionId(chatHistoryData.sessionId);
+      setSessionId(chatHistoryData.sessionId);
+    }
+  }, [chatHistoryData, setSessionId]);
+
+  // Reset when document changes
+  useEffect(() => {
+    setMessages([]);
+    setCurrentSessionId(null);
+    setSessionId(null);
+    historyLoadedRef.current = null;
+  }, [documentId, setSessionId]);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -109,13 +151,14 @@ export function ChatArea({ documentId, onSourceClick }: ChatAreaProps) {
     streamingMessageIdRef.current = assistantMessageId;
     setInput("");
 
-    await ask(documentId, question);
+    // Pass existing session ID to maintain conversation context
+    await ask(documentId, question, currentSessionId || undefined);
   };
 
-  if (isLoadingDoc) {
+  if (isLoadingDoc || isLoadingHistory) {
     return (
       <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Loading document...</p>
+        <p className="text-muted-foreground">Loading...</p>
       </div>
     );
   }

@@ -29,9 +29,6 @@ export function DocumentViewer({ documentId }: DocumentViewerProps) {
 
   // Handle source click from chat - navigate to page and highlight regions
   const handleSourceClick = useCallback((source: SourceReference) => {
-    // Navigate to the page (0-indexed)
-    const pageIndex = source.page - 1;
-    setCurrentPage(pageIndex);
     setPdfVisible(true);
     if (isMobile) {
       setSheetState("half");
@@ -39,32 +36,42 @@ export function DocumentViewer({ documentId }: DocumentViewerProps) {
 
     // Convert source positions to PDF highlights
     if (source.positions && source.positions.length > 0) {
-      const newHighlight: Highlight = {
-        id: `source-${Date.now()}`,
-        pageIndex,
-        content: "",
-        quote: source.text,
-        highlightAreas: source.positions
-          .filter((pos) => pos.boundingBox)
-          .map((pos) => ({
+      const validPositions = source.positions.filter((pos) => pos.boundingBox);
+
+      if (validPositions.length > 0) {
+        // Navigate to the first position's page (0-indexed)
+        const targetPageIndex = validPositions[0].pageNumber - 1;
+        setCurrentPage(targetPageIndex);
+
+        const newHighlight: Highlight = {
+          id: `source-${Date.now()}`,
+          pageIndex: targetPageIndex,
+          content: "",
+          quote: source.text,
+          highlightAreas: validPositions.map((pos) => ({
             pageIndex: pos.pageNumber - 1,
             // Convert from inches to percentage of page
-            // Note: These values need to be percentages for the PDF viewer
             // The bounding box from Document Intelligence is in inches
-            // We need the page dimensions to convert properly
-            // For now, we use approximate conversion assuming standard page size
+            // Using standard US Letter page size (8.5 x 11 inches)
             left: (pos.boundingBox!.x / 8.5) * 100,
             top: (pos.boundingBox!.y / 11) * 100,
             width: (pos.boundingBox!.width / 8.5) * 100,
             height: (pos.boundingBox!.height / 11) * 100,
           })),
-      };
+        };
 
-      // Replace existing source highlights with new one
-      setHighlights((prev) => {
-        const filtered = prev.filter((h) => !h.id.startsWith("source-"));
-        return [...filtered, newHighlight];
-      });
+        // Replace existing source highlights with new one
+        setHighlights((prev) => {
+          const filtered = prev.filter((h) => !h.id.startsWith("source-"));
+          return [...filtered, newHighlight];
+        });
+      } else {
+        // Fallback: navigate to source.page if no valid positions
+        setCurrentPage(source.page - 1);
+      }
+    } else {
+      // No positions available, just navigate to the page
+      setCurrentPage(source.page - 1);
     }
   }, [isMobile]);
 

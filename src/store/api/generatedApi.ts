@@ -1,5 +1,5 @@
 import { baseApi as api } from "./baseApi";
-export const addTagTypes = ["Documents", "System"] as const;
+export const addTagTypes = ["Documents", "System", "Chat"] as const;
 const injectedRtkApi = api
   .enhanceEndpoints({
     addTagTypes,
@@ -46,15 +46,6 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["Documents"],
       }),
-      getDownloadUrl: build.query<
-        GetDownloadUrlApiResponse,
-        GetDownloadUrlApiArg
-      >({
-        query: (queryArg) => ({
-          url: `/documents/${queryArg.documentId}/download-url`,
-        }),
-        providesTags: ["Documents"],
-      }),
       getHealth: build.query<GetHealthApiResponse, GetHealthApiArg>({
         query: () => ({ url: `/health` }),
         providesTags: ["System"],
@@ -76,6 +67,31 @@ const injectedRtkApi = api
           url: `/documents/${queryArg.documentId}/status`,
         }),
         providesTags: ["Documents"],
+      }),
+      getDownloadUrl: build.query<
+        GetDownloadUrlApiResponse,
+        GetDownloadUrlApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/documents/${queryArg.documentId}/download-url`,
+        }),
+        providesTags: ["Documents"],
+      }),
+      getChatSessions: build.query<
+        GetChatSessionsApiResponse,
+        GetChatSessionsApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/documents/${queryArg.documentId}/chat-sessions`,
+        }),
+        providesTags: ["Chat"],
+      }),
+      getChatHistory: build.query<
+        GetChatHistoryApiResponse,
+        GetChatHistoryApiArg
+      >({
+        query: (queryArg) => ({ url: `/chat-sessions/${queryArg.sessionId}` }),
+        providesTags: ["Chat"],
       }),
     }),
     overrideExisting: false,
@@ -107,12 +123,6 @@ export type DeleteDocumentApiArg = {
   /** Document ID */
   documentId: string;
 };
-export type GetDownloadUrlApiResponse =
-  /** status 200 Download URL and document metadata */ DownloadUrlResponse;
-export type GetDownloadUrlApiArg = {
-  /** Document ID */
-  documentId: string;
-};
 export type GetHealthApiResponse =
   /** status 200 Health status */ HealthResponse;
 export type GetHealthApiArg = void;
@@ -125,6 +135,24 @@ export type SayHelloApiArg = {
 export type GetIndexingStatusApiResponse = unknown;
 export type GetIndexingStatusApiArg = {
   documentId: string;
+};
+export type GetDownloadUrlApiResponse =
+  /** status 200 Download URL and document metadata */ DownloadUrlResponse;
+export type GetDownloadUrlApiArg = {
+  /** Document ID */
+  documentId: string;
+};
+export type GetChatSessionsApiResponse =
+  /** status 200 List of chat sessions */ ChatSessionsResponse;
+export type GetChatSessionsApiArg = {
+  /** Document ID */
+  documentId: string;
+};
+export type GetChatHistoryApiResponse =
+  /** status 200 Chat history */ ChatHistoryResponse;
+export type GetChatHistoryApiArg = {
+  /** Session ID */
+  sessionId: string;
 };
 export type AskRequest = {
   question?: string;
@@ -151,12 +179,6 @@ export type DeleteDocumentResponse = {
   message?: string;
   documentId?: string;
 };
-export type DownloadUrlResponse = {
-  documentId?: string;
-  downloadUrl?: string;
-  filename?: string;
-  expiresAt?: string;
-};
 export type HealthResponse = {
   status?: string;
   timestamp?: string;
@@ -166,14 +188,42 @@ export type HelloResponse = {
   message?: string;
   timestamp?: string;
 };
+export type DownloadUrlResponse = {
+  documentId?: string;
+  downloadUrl?: string;
+  filename?: string;
+  expiresAt?: string;
+};
+export type ChatSessionSummary = {
+  sessionId?: string;
+  documentId?: string;
+  messageCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+};
+export type ChatSessionsResponse = {
+  sessions?: ChatSessionSummary[];
+};
+export type ChatMessageDto = {
+  role?: string;
+  content?: string;
+  timestamp?: string;
+};
+export type ChatHistoryResponse = {
+  sessionId?: string;
+  documentId?: string;
+  messages?: ChatMessageDto[];
+};
 export const {
   useAskQuestionMutation,
   useGetUploadUrlMutation,
   useListDocumentsQuery,
   useGetDocumentQuery,
   useDeleteDocumentMutation,
-  useGetDownloadUrlQuery,
   useGetHealthQuery,
   useSayHelloQuery,
   useGetIndexingStatusQuery,
+  useGetDownloadUrlQuery,
+  useGetChatSessionsQuery,
+  useGetChatHistoryQuery,
 } = injectedRtkApi;
