@@ -30,38 +30,44 @@ export function ChatArea({ documentId, onSourceClick }: ChatAreaProps) {
   });
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(
-    null
-  );
+  const streamingMessageIdRef = useRef<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { ask, isLoading } = useAskQuestion({
     onChunk: (chunk) => {
+      const id = streamingMessageIdRef.current;
+      if (!id) return;
       setMessages((prev) =>
         prev.map((m) =>
-          m.id === streamingMessageId ? { ...m, content: m.content + chunk } : m
+          m.id === id ? { ...m, content: m.content + chunk } : m
         )
       );
     },
     onSources: (sources) => {
+      const id = streamingMessageIdRef.current;
+      if (!id) return;
       setMessages((prev) =>
         prev.map((m) =>
-          m.id === streamingMessageId ? { ...m, sources } : m
+          m.id === id ? { ...m, sources } : m
         )
       );
     },
     onComplete: () => {
+      const id = streamingMessageIdRef.current;
+      if (!id) return;
       setMessages((prev) =>
         prev.map((m) =>
-          m.id === streamingMessageId ? { ...m, isStreaming: false } : m
+          m.id === id ? { ...m, isStreaming: false } : m
         )
       );
-      setStreamingMessageId(null);
+      streamingMessageIdRef.current = null;
     },
     onError: (error) => {
+      const id = streamingMessageIdRef.current;
+      if (!id) return;
       setMessages((prev) =>
         prev.map((m) =>
-          m.id === streamingMessageId
+          m.id === id
             ? {
                 ...m,
                 content: m.content || `Error: ${error}`,
@@ -70,7 +76,7 @@ export function ChatArea({ documentId, onSourceClick }: ChatAreaProps) {
             : m
         )
       );
-      setStreamingMessageId(null);
+      streamingMessageIdRef.current = null;
     },
   });
 
@@ -100,7 +106,7 @@ export function ChatArea({ documentId, onSourceClick }: ChatAreaProps) {
     };
 
     setMessages((prev) => [...prev, userMessage, assistantMessage]);
-    setStreamingMessageId(assistantMessageId);
+    streamingMessageIdRef.current = assistantMessageId;
     setInput("");
 
     await ask(documentId, question);
