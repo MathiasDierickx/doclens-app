@@ -197,59 +197,60 @@ export function UploadArea({ onUploadComplete }: UploadAreaProps) {
           </div>
         </div>
 
-        <h2 className="mb-3 text-3xl font-bold text-foreground">Upload a Document</h2>
-        <p className="mb-8 text-muted-foreground text-lg">
-          Upload a PDF to start asking questions about its content
-        </p>
-
         {phase === "idle" && (
-          <div
-            className={`border-2 border-dashed rounded-2xl p-12 transition-all duration-300 bg-white/50 backdrop-blur-sm ${
-              isDragging
-                ? "border-primary bg-primary/10 scale-[1.02] shadow-xl shadow-primary/10"
-                : "border-primary/30 hover:border-primary/60 hover:bg-white/80 hover:shadow-lg"
-            }`}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-          >
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="28"
-                height="28"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="text-primary"
-              >
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="17 8 12 3 7 8" />
-                <line x1="12" x2="12" y1="3" y2="15" />
-              </svg>
+          <>
+            <h2 className="mb-3 text-3xl font-bold text-foreground">Upload a Document</h2>
+            <p className="mb-8 text-muted-foreground text-lg">
+              Upload a PDF to start asking questions about its content
+            </p>
+            <div
+              className={`border-2 border-dashed rounded-2xl p-12 transition-all duration-300 bg-white/50 backdrop-blur-sm ${
+                isDragging
+                  ? "border-primary bg-primary/10 scale-[1.02] shadow-xl shadow-primary/10"
+                  : "border-primary/30 hover:border-primary/60 hover:bg-white/80 hover:shadow-lg"
+              }`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="28"
+                  height="28"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-primary"
+                >
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" x2="12" y1="3" y2="15" />
+                </svg>
+              </div>
+              <p className="text-base text-foreground font-medium mb-2">
+                Drag and drop your PDF here
+              </p>
+              <p className="text-sm text-muted-foreground mb-6">
+                or click to browse your files
+              </p>
+              <input
+                type="file"
+                accept=".pdf"
+                onChange={handleFileSelect}
+                className="hidden"
+                id="file-upload"
+              />
+              <label htmlFor="file-upload">
+                <Button className="bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-opacity text-white font-medium px-8 py-2 shadow-lg shadow-primary/20" asChild>
+                  <span>Select PDF File</span>
+                </Button>
+              </label>
             </div>
-            <p className="text-base text-foreground font-medium mb-2">
-              Drag and drop your PDF here
-            </p>
-            <p className="text-sm text-muted-foreground mb-6">
-              or click to browse your files
-            </p>
-            <input
-              type="file"
-              accept=".pdf"
-              onChange={handleFileSelect}
-              className="hidden"
-              id="file-upload"
-            />
-            <label htmlFor="file-upload">
-              <Button className="bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-opacity text-white font-medium px-8 py-2 shadow-lg shadow-primary/20" asChild>
-                <span>Select PDF File</span>
-              </Button>
-            </label>
-          </div>
+          </>
         )}
 
         {(phase === "getting-url" ||
