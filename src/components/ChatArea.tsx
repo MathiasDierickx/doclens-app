@@ -7,6 +7,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { useGetDocumentQuery } from "@/store/api/generatedApi";
 import { useAskQuestion, SourceReference } from "@/hooks/useAskQuestion";
 
+// Re-export for use in other components
+export type { SourceReference } from "@/hooks/useAskQuestion";
+
 interface Message {
   id: string;
   role: "user" | "assistant";
@@ -17,8 +20,8 @@ interface Message {
 
 interface ChatAreaProps {
   documentId: string;
-  /** Callback when a source citation is clicked (page is 0-indexed) */
-  onSourceClick?: (pageIndex: number) => void;
+  /** Callback when a source citation is clicked - receives full source with positions */
+  onSourceClick?: (source: SourceReference) => void;
 }
 
 export function ChatArea({ documentId, onSourceClick }: ChatAreaProps) {
@@ -112,13 +115,29 @@ export function ChatArea({ documentId, onSourceClick }: ChatAreaProps) {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-gradient-to-b from-background to-muted/30">
       {/* Document Header */}
-      <div className="border-b px-6 py-4">
+      <div className="border-b bg-white/50 backdrop-blur-sm px-6 py-4">
         <div className="flex items-center gap-3">
-          <span className="text-2xl">📄</span>
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-primary"
+            >
+              <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+              <polyline points="14 2 14 8 20 8" />
+            </svg>
+          </div>
           <div>
-            <h2 className="font-semibold">
+            <h2 className="font-semibold text-foreground">
               {document?.filename || "Document"}
             </h2>
             <p className="text-xs text-muted-foreground">
@@ -134,30 +153,57 @@ export function ChatArea({ documentId, onSourceClick }: ChatAreaProps) {
       <div className="flex-1 overflow-auto p-6">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
-            <p className="text-muted-foreground mb-6">
-              Ask a question about this document
+            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center mb-6">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="36"
+                height="36"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-primary"
+              >
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-foreground mb-2">Start a Conversation</h3>
+            <p className="text-muted-foreground mb-8 max-w-md">
+              Ask questions about your document and get instant answers with source references
             </p>
             <div className="grid gap-3 sm:grid-cols-2 max-w-lg">
               <Card
-                className="cursor-pointer transition-colors hover:bg-muted/50"
+                className="cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-[1.02] hover:border-primary/30 border-2 border-transparent bg-white"
                 onClick={() =>
                   setInput("What are the main findings of this document?")
                 }
               >
                 <CardContent className="p-4">
-                  <p className="text-sm text-muted-foreground">
-                    &quot;What are the main findings?&quot;
-                  </p>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                    </div>
+                    <p className="text-sm text-foreground font-medium text-left">
+                      What are the main findings?
+                    </p>
+                  </div>
                 </CardContent>
               </Card>
               <Card
-                className="cursor-pointer transition-colors hover:bg-muted/50"
+                className="cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-[1.02] hover:border-accent/30 border-2 border-transparent bg-white"
                 onClick={() => setInput("Summarize this document")}
               >
                 <CardContent className="p-4">
-                  <p className="text-sm text-muted-foreground">
-                    &quot;Summarize this document&quot;
-                  </p>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-accent"><line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/></svg>
+                    </div>
+                    <p className="text-sm text-foreground font-medium text-left">
+                      Summarize this document
+                    </p>
+                  </div>
                 </CardContent>
               </Card>
             </div>
@@ -171,60 +217,76 @@ export function ChatArea({ documentId, onSourceClick }: ChatAreaProps) {
                   message.role === "user" ? "justify-end" : "justify-start"
                 }`}
               >
-                <div
-                  className={`max-w-[80%] rounded-lg px-4 py-3 ${
+                <div className={`flex items-start gap-3 max-w-[85%] ${message.role === "user" ? "flex-row-reverse" : ""}`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
                     message.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted"
-                  }`}
-                >
-                  {message.content ? (
-                    <p className="whitespace-pre-wrap">
-                      {message.content}
-                      {message.isStreaming && (
-                        <span className="inline-block w-2 h-4 ml-1 bg-current animate-pulse" />
-                      )}
-                    </p>
-                  ) : message.isStreaming ? (
-                    <div className="flex space-x-2">
-                      <div className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/50" />
-                      <div className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/50 [animation-delay:0.1s]" />
-                      <div className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/50 [animation-delay:0.2s]" />
-                    </div>
-                  ) : null}
+                      ? "bg-gradient-to-br from-primary to-accent"
+                      : "bg-gradient-to-br from-accent/80 to-primary/80"
+                  }`}>
+                    {message.role === "user" ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
+                    )}
+                  </div>
+                  <div
+                    className={`rounded-2xl px-4 py-3 shadow-sm ${
+                      message.role === "user"
+                        ? "bg-gradient-to-r from-primary to-primary/90 text-white"
+                        : "bg-white border border-border/50"
+                    }`}
+                  >
+                    {message.content ? (
+                      <p className="whitespace-pre-wrap leading-relaxed">
+                        {message.content}
+                        {message.isStreaming && (
+                          <span className="inline-block w-2 h-4 ml-1 bg-current animate-pulse rounded-sm" />
+                        )}
+                      </p>
+                    ) : message.isStreaming ? (
+                      <div className="flex space-x-2 py-1">
+                        <div className="h-2 w-2 animate-bounce rounded-full bg-primary/50" />
+                        <div className="h-2 w-2 animate-bounce rounded-full bg-primary/50 [animation-delay:0.1s]" />
+                        <div className="h-2 w-2 animate-bounce rounded-full bg-primary/50 [animation-delay:0.2s]" />
+                      </div>
+                    ) : null}
 
-                  {message.sources && message.sources.length > 0 && (
-                    <div className="mt-4 space-y-2">
-                      <p className="text-xs font-medium opacity-70">Sources:</p>
-                      {message.sources.map((source, idx) => (
-                        <Card
-                          key={idx}
-                          className={`bg-background/50 ${
-                            onSourceClick
-                              ? "cursor-pointer transition-colors hover:bg-background/80"
-                              : ""
-                          }`}
-                          onClick={() => onSourceClick?.(source.page - 1)}
-                        >
-                          <CardHeader className="p-3 pb-1">
-                            <CardTitle className="text-xs font-medium flex items-center gap-2">
-                              Page {source.page}
-                              {onSourceClick && (
-                                <span className="text-[10px] text-muted-foreground">
-                                  Click to view
-                                </span>
-                              )}
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent className="p-3 pt-0">
-                            <p className="text-xs text-muted-foreground">
-                              {source.text}
-                            </p>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  )}
+                    {message.sources && message.sources.length > 0 && (
+                      <div className="mt-4 space-y-2">
+                        <p className="text-xs font-semibold text-primary/80 flex items-center gap-1">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                          Sources
+                        </p>
+                        {message.sources.map((source, idx) => (
+                          <Card
+                            key={idx}
+                            className={`bg-gradient-to-r from-muted/50 to-muted/30 border-primary/10 ${
+                              onSourceClick
+                                ? "cursor-pointer transition-all duration-200 hover:shadow-md hover:border-primary/30"
+                                : ""
+                            }`}
+                            onClick={() => onSourceClick?.(source)}
+                          >
+                            <CardHeader className="p-3 pb-1">
+                              <CardTitle className="text-xs font-semibold flex items-center gap-2 text-primary">
+                                <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary">Page {source.page}</span>
+                                {onSourceClick && (
+                                  <span className="text-[10px] text-muted-foreground font-normal">
+                                    Click to view
+                                  </span>
+                                )}
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent className="p-3 pt-0">
+                              <p className="text-xs text-muted-foreground leading-relaxed">
+                                {source.text}
+                              </p>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -234,23 +296,29 @@ export function ChatArea({ documentId, onSourceClick }: ChatAreaProps) {
       </div>
 
       {/* Input Area */}
-      <div className="border-t bg-background px-6 py-4">
+      <div className="border-t bg-white/80 backdrop-blur-sm px-6 py-4">
         <form onSubmit={handleSubmit} className="flex gap-3 max-w-3xl mx-auto">
-          <Textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask a question about this document..."
-            className="min-h-[44px] flex-1 resize-none"
-            rows={1}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSubmit(e);
-              }
-            }}
-          />
-          <Button type="submit" disabled={isLoading || !input.trim()}>
-            Send
+          <div className="flex-1 relative">
+            <Textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Ask a question about this document..."
+              className="min-h-[52px] flex-1 resize-none pr-4 rounded-xl border-2 border-border/50 focus:border-primary/50 transition-colors bg-white shadow-sm"
+              rows={1}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSubmit(e);
+                }
+              }}
+            />
+          </div>
+          <Button
+            type="submit"
+            disabled={isLoading || !input.trim()}
+            className="h-[52px] px-6 rounded-xl bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-opacity shadow-lg"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
           </Button>
         </form>
       </div>

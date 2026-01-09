@@ -42,10 +42,33 @@ export default function Home() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <header className="border-b px-6 py-4">
+        <header className="border-b border-border/50 px-6 py-3 bg-white/80 backdrop-blur-sm">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <h1 className="text-xl font-semibold">DocLens</h1>
+            <div className="flex items-center gap-3">
+              {/* DocLens Logo */}
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-md shadow-primary/20">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="white"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                    <circle cx="11.5" cy="14.5" r="2.5" />
+                    <path d="M13.3 16.3 15 18" />
+                  </svg>
+                </div>
+                <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                  DocLens
+                </h1>
+              </div>
+              <div className="h-6 w-px bg-border/50" />
               <ApiHealthIndicator />
             </div>
           </div>

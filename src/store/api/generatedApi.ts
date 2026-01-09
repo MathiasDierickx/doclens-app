@@ -46,6 +46,15 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["Documents"],
       }),
+      getDownloadUrl: build.query<
+        GetDownloadUrlApiResponse,
+        GetDownloadUrlApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/documents/${queryArg.documentId}/download-url`,
+        }),
+        providesTags: ["Documents"],
+      }),
       getHealth: build.query<GetHealthApiResponse, GetHealthApiArg>({
         query: () => ({ url: `/health` }),
         providesTags: ["System"],
@@ -98,6 +107,12 @@ export type DeleteDocumentApiArg = {
   /** Document ID */
   documentId: string;
 };
+export type GetDownloadUrlApiResponse =
+  /** status 200 Download URL and document metadata */ DownloadUrlResponse;
+export type GetDownloadUrlApiArg = {
+  /** Document ID */
+  documentId: string;
+};
 export type GetHealthApiResponse =
   /** status 200 Health status */ HealthResponse;
 export type GetHealthApiArg = void;
@@ -136,6 +151,12 @@ export type DeleteDocumentResponse = {
   message?: string;
   documentId?: string;
 };
+export type DownloadUrlResponse = {
+  documentId?: string;
+  downloadUrl?: string;
+  filename?: string;
+  expiresAt?: string;
+};
 export type HealthResponse = {
   status?: string;
   timestamp?: string;
@@ -151,6 +172,7 @@ export const {
   useListDocumentsQuery,
   useGetDocumentQuery,
   useDeleteDocumentMutation,
+  useGetDownloadUrlQuery,
   useGetHealthQuery,
   useSayHelloQuery,
   useGetIndexingStatusQuery,

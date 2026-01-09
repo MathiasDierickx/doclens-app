@@ -200,6 +200,49 @@
         }
       }
     },
+    "/documents/{documentId}/download-url": {
+      "get": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Get download URL",
+        "description": "Generate a SAS URL for downloading a PDF from Azure Blob Storage",
+        "operationId": "getDownloadUrl",
+        "parameters": [
+          {
+            "name": "documentId",
+            "in": "path",
+            "description": "Document ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Download URL and document metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/downloadUrlResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Document not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "tags": [
@@ -335,6 +378,24 @@
             "items": {
               "$ref": "#/components/schemas/documentInfo"
             }
+          }
+        }
+      },
+      "downloadUrlResponse": {
+        "type": "object",
+        "properties": {
+          "documentId": {
+            "type": "string"
+          },
+          "downloadUrl": {
+            "type": "string"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },

@@ -2,11 +2,11 @@
 
 import { useState, useCallback } from "react";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
-import { ChatArea } from "@/components/ChatArea";
+import { ChatArea, SourceReference } from "@/components/ChatArea";
 import { PdfViewer, Highlight } from "@/components/pdf/PdfViewer";
 import { SplitView } from "@/components/layout/SplitView";
 import { BottomSheet } from "@/components/layout/BottomSheet";
-import { useGetDocumentQuery } from "@/store/api/generatedApi";
+import { useGetDocumentQuery, useGetDownloadUrlQuery } from "@/store/api/generatedApi";
 import { Button } from "@/components/ui/button";
 import { FileText, X } from "lucide-react";
 
@@ -16,6 +16,7 @@ interface DocumentViewerProps {
 
 export function DocumentViewer({ documentId }: DocumentViewerProps) {
   const { data: document } = useGetDocumentQuery({ documentId });
+  const { data: downloadUrlData, isLoading: isLoadingUrl } = useGetDownloadUrlQuery({ documentId });
   const isMobile = useMediaQuery("(max-width: 768px)");
 
   // PDF viewer state
@@ -26,12 +27,44 @@ export function DocumentViewer({ documentId }: DocumentViewerProps) {
     "collapsed"
   );
 
-  // Handle page navigation from chat (when user clicks a source)
-  const handleNavigateToPage = useCallback((pageIndex: number) => {
+  // Handle source click from chat - navigate to page and highlight regions
+  const handleSourceClick = useCallback((source: SourceReference) => {
+    // Navigate to the page (0-indexed)
+    const pageIndex = source.page - 1;
     setCurrentPage(pageIndex);
     setPdfVisible(true);
     if (isMobile) {
       setSheetState("half");
+    }
+
+    // Convert source positions to PDF highlights
+    if (source.positions && source.positions.length > 0) {
+      const newHighlight: Highlight = {
+        id: `source-${Date.now()}`,
+        pageIndex,
+        content: "",
+        quote: source.text,
+        highlightAreas: source.positions
+          .filter((pos) => pos.boundingBox)
+          .map((pos) => ({
+            pageIndex: pos.pageNumber - 1,
+            // Convert from inches to percentage of page
+            // Note: These values need to be percentages for the PDF viewer
+            // The bounding box from Document Intelligence is in inches
+            // We need the page dimensions to convert properly
+            // For now, we use approximate conversion assuming standard page size
+            left: (pos.boundingBox!.x / 8.5) * 100,
+            top: (pos.boundingBox!.y / 11) * 100,
+            width: (pos.boundingBox!.width / 8.5) * 100,
+            height: (pos.boundingBox!.height / 11) * 100,
+          })),
+      };
+
+      // Replace existing source highlights with new one
+      setHighlights((prev) => {
+        const filtered = prev.filter((h) => !h.id.startsWith("source-"));
+        return [...filtered, newHighlight];
+      });
     }
   }, [isMobile]);
 
@@ -53,19 +86,15 @@ export function DocumentViewer({ documentId }: DocumentViewerProps) {
     console.log("Highlight clicked:", highlight);
   }, []);
 
-  // Get PDF URL from document
-  // TODO: Backend needs to return a SAS URL for viewing the PDF
-  // For now, we construct a potential URL pattern that will need to be implemented
-  const pdfUrl = document?.documentId
-    ? `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:7071/api"}/documents/${document.documentId}/content`
-    : "";
+  // Get PDF URL from download SAS token
+  const pdfUrl = downloadUrlData?.downloadUrl || "";
 
   // Chat panel with PDF toggle button
   const chatPanel = (
     <div className="relative h-full">
       <ChatArea
         documentId={documentId}
-        onSourceClick={handleNavigateToPage}
+        onSourceClick={handleSourceClick}
       />
 
       {/* PDF Toggle Button (desktop only, when PDF is hidden) */}
@@ -82,7 +111,11 @@ export function DocumentViewer({ documentId }: DocumentViewerProps) {
   );
 
   // PDF panel with close button
-  const pdfPanel = pdfUrl ? (
+  const pdfPanel = isLoadingUrl ? (
+    <div className="flex h-full items-center justify-center">
+      <p className="text-muted-foreground">Loading PDF...</p>
+    </div>
+  ) : pdfUrl ? (
     <div className="relative h-full">
       {/* Close button (desktop only) */}
       {!isMobile && (
