@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiHealthIndicator } from "@/components/ApiHealthIndicator";
+import { UploadDialog } from "@/components/UploadDialog";
+import { DocumentsList } from "@/components/DocumentsList";
 
 interface Message {
   id: string;
@@ -59,9 +61,7 @@ export default function Home() {
             <h1 className="text-xl font-semibold">DocLens</h1>
             <ApiHealthIndicator />
           </div>
-          <Button variant="outline" size="sm">
-            Upload PDF
-          </Button>
+<UploadDialog />
         </div>
       </header>
 
@@ -78,7 +78,7 @@ export default function Home() {
                 Upload a PDF document and ask questions about its content.
                 I&apos;ll provide answers with references to the source pages.
               </p>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2 mb-8">
                 <Card className="cursor-pointer transition-colors hover:bg-muted/50">
                   <CardContent className="p-4">
                     <p className="text-sm text-muted-foreground">
@@ -94,6 +94,8 @@ export default function Home() {
                   </CardContent>
                 </Card>
               </div>
+
+              <DocumentsList />
             </div>
           ) : (
             <div className="space-y-6">
