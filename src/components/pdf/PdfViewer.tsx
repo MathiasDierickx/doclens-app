@@ -50,6 +50,8 @@ interface PdfViewerProps {
   highlights?: Highlight[];
   /** Callback when a highlight is clicked */
   onHighlightClick?: (highlight: Highlight) => void;
+  /** Callback when the document is fully loaded and ready */
+  onDocumentReady?: () => void;
 }
 
 export function PdfViewer({
@@ -61,6 +63,7 @@ export function PdfViewer({
   onHighlightCreate,
   highlights = [],
   onHighlightClick,
+  onDocumentReady,
 }: PdfViewerProps) {
   const [isReady, setIsReady] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -196,7 +199,10 @@ export function PdfViewer({
           initialPage={initialPage}
           defaultScale={SpecialZoomLevel.PageWidth}
           onPageChange={handlePageChange}
-          onDocumentLoad={() => setIsReady(true)}
+          onDocumentLoad={() => {
+            setIsReady(true);
+            onDocumentReady?.();
+          }}
         />
       </Worker>
     </div>

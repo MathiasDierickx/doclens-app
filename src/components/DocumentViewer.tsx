@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { ChatArea, SourceReference } from "@/components/ChatArea";
 import { PdfViewer, Highlight } from "@/components/pdf/PdfViewer";
@@ -22,6 +22,7 @@ interface PdfPanelProps {
   onHighlightCreate: (highlight: Omit<Highlight, "id">) => void;
   onHighlightClick: (highlight: Highlight) => void;
   onClose: () => void;
+  onDocumentReady: () => void;
 }
 
 function PdfPanel({
@@ -36,6 +37,7 @@ function PdfPanel({
   onHighlightCreate,
   onHighlightClick,
   onClose,
+  onDocumentReady,
 }: PdfPanelProps) {
   if (isLoading) {
     return (
@@ -76,6 +78,7 @@ function PdfPanel({
         highlights={highlights}
         onHighlightCreate={onHighlightCreate}
         onHighlightClick={onHighlightClick}
+        onDocumentReady={onDocumentReady}
       />
     </div>
   );
@@ -92,12 +95,19 @@ export function DocumentViewer({ documentId }: DocumentViewerProps) {
 
   // PDF viewer state
   const [pdfVisible, setPdfVisible] = useState(false);
+  const [pdfReady, setPdfReady] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
   const [navigationTrigger, setNavigationTrigger] = useState(0); // Force re-navigation
   const [highlights, setHighlights] = useState<Highlight[]>([]);
   const [sheetState, setSheetState] = useState<"collapsed" | "half" | "expanded">(
     "collapsed"
   );
+
+  // Pending navigation when PDF is opening
+  const pendingNavigationRef = useRef<{
+    page: number;
+    highlights: Highlight[];
+  } | null>(null);
 
   // Wrapper to validate page numbers before setting
   const setCurrentPageWithValidation = useCallback((page: number | ((prev: number) => number)) => {
@@ -114,21 +124,18 @@ export function DocumentViewer({ documentId }: DocumentViewerProps) {
   const handleSourceClick = useCallback((source: SourceReference) => {
     console.log("Source clicked:", source);
     console.log("Positions:", source.positions);
+    console.log("PDF visible:", pdfVisible, "PDF ready:", pdfReady);
 
-    setPdfVisible(true);
-    if (isMobile) {
-      setSheetState("half");
-    }
+    // Determine target page and highlights
+    let targetPageIndex = source.page - 1;
+    let newHighlights: Highlight[] = [];
 
     // Convert source positions to PDF highlights
     if (source.positions && source.positions.length > 0) {
       const validPositions = source.positions.filter((pos) => pos.boundingBox);
 
       if (validPositions.length > 0) {
-        // Navigate to the first position's page (0-indexed)
-        const targetPageIndex = validPositions[0].pageNumber - 1;
-        setCurrentPageWithValidation(targetPageIndex);
-        setNavigationTrigger((n) => n + 1); // Force re-navigation even if same page
+        targetPageIndex = validPositions[0].pageNumber - 1;
 
         const newHighlight: Highlight = {
           id: `source-${Date.now()}`,
@@ -152,25 +159,69 @@ export function DocumentViewer({ documentId }: DocumentViewerProps) {
         };
 
         console.log("Created highlight:", newHighlight);
+        newHighlights = [newHighlight];
+      }
+    }
 
-        // Replace existing source highlights with new one
+    // If PDF is not visible or not ready, store pending navigation
+    if (!pdfVisible || !pdfReady) {
+      console.log("PDF not ready, storing pending navigation to page:", targetPageIndex);
+      pendingNavigationRef.current = {
+        page: targetPageIndex,
+        highlights: newHighlights,
+      };
+
+      // Open the PDF
+      setPdfVisible(true);
+      if (isMobile) {
+        setSheetState("half");
+      }
+
+      // Reset pdfReady since we're opening (or reopening) the PDF
+      setPdfReady(false);
+    } else {
+      // PDF is already visible and ready, navigate immediately
+      setCurrentPageWithValidation(targetPageIndex);
+      setNavigationTrigger((n) => n + 1);
+
+      if (newHighlights.length > 0) {
         setHighlights((prev) => {
           const filtered = prev.filter((h) => !h.id.startsWith("source-"));
-          const updated = [...filtered, newHighlight];
+          const updated = [...filtered, ...newHighlights];
           console.log("Updated highlights:", updated);
           return updated;
         });
-      } else {
-        // Fallback: navigate to source.page if no valid positions
-        setCurrentPageWithValidation(source.page - 1);
-        setNavigationTrigger((n) => n + 1);
       }
-    } else {
-      // No positions available, just navigate to the page
-      setCurrentPageWithValidation(source.page - 1);
-      setNavigationTrigger((n) => n + 1);
     }
-  }, [isMobile]);
+  }, [isMobile, pdfVisible, pdfReady, setCurrentPageWithValidation]);
+
+  // Handle PDF document ready - apply pending navigation
+  const handleDocumentReady = useCallback(() => {
+    console.log("PDF document ready");
+    setPdfReady(true);
+
+    // Apply pending navigation if any
+    if (pendingNavigationRef.current) {
+      const { page, highlights: pendingHighlights } = pendingNavigationRef.current;
+      console.log("Applying pending navigation to page:", page);
+
+      // Small delay to ensure the PDF viewer is fully initialized
+      setTimeout(() => {
+        setCurrentPageWithValidation(page);
+        setNavigationTrigger((n) => n + 1);
+
+        if (pendingHighlights.length > 0) {
+          setHighlights((prev) => {
+            const filtered = prev.filter((h) => !h.id.startsWith("source-"));
+            return [...filtered, ...pendingHighlights];
+          });
+        }
+
+        // Clear pending navigation
+        pendingNavigationRef.current = null;
+      }, 100);
+    }
+  }, [setCurrentPageWithValidation]);
 
   // Handle highlight creation
   const handleHighlightCreate = useCallback(
@@ -214,7 +265,10 @@ export function DocumentViewer({ documentId }: DocumentViewerProps) {
     </div>
   );
 
-  const handleClosePdf = useCallback(() => setPdfVisible(false), []);
+  const handleClosePdf = useCallback(() => {
+    setPdfVisible(false);
+    setPdfReady(false); // Reset ready state when closing
+  }, []);
 
   const pdfPanel = (
     <PdfPanel
@@ -229,6 +283,7 @@ export function DocumentViewer({ documentId }: DocumentViewerProps) {
       onHighlightCreate={handleHighlightCreate}
       onHighlightClick={handleHighlightClick}
       onClose={handleClosePdf}
+      onDocumentReady={handleDocumentReady}
     />
   );
 
