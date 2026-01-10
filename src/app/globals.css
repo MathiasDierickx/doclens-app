@@ -119,8 +119,20 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    /* Prevent horizontal scroll on mobile */
+    overflow-x: hidden;
+    /* Prevent pull-to-refresh on mobile */
+    overscroll-behavior-y: contain;
+  }
   body {
     @apply bg-background text-foreground;
+    /* Prevent horizontal scroll on mobile */
+    overflow-x: hidden;
+    /* Improve touch scrolling */
+    -webkit-overflow-scrolling: touch;
+    /* Prevent text size adjustment on orientation change */
+    -webkit-text-size-adjust: 100%;
   }
   button,
   [role="button"],
@@ -133,6 +145,23 @@
   summary,
   [tabindex]:not([tabindex="-1"]) {
     cursor: pointer;
+    /* Ensure minimum touch target size */
+    @apply min-h-[44px] min-w-[44px];
+  }
+  /* Reset min-height for inline/small buttons that use size="sm" or size="icon" */
+  button.h-8,
+  button.h-9,
+  [role="button"].h-8,
+  [role="button"].h-9 {
+    min-height: unset;
+    min-width: unset;
+  }
+  /* Safe area insets for notched devices */
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
   }
 }
 

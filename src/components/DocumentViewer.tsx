@@ -10,6 +10,77 @@ import { useGetDocumentQuery, useGetDownloadUrlQuery } from "@/store/api/generat
 import { Button } from "@/components/ui/button";
 import { FileText, X } from "lucide-react";
 
+interface PdfPanelProps {
+  isLoading: boolean;
+  pdfUrl: string;
+  isMobile: boolean;
+  documentId: string;
+  currentPage: number;
+  navigationTrigger: number;
+  highlights: Highlight[];
+  onPageChange: (page: number) => void;
+  onHighlightCreate: (highlight: Omit<Highlight, "id">) => void;
+  onHighlightClick: (highlight: Highlight) => void;
+  onClose: () => void;
+}
+
+function PdfPanel({
+  isLoading,
+  pdfUrl,
+  isMobile,
+  documentId,
+  currentPage,
+  navigationTrigger,
+  highlights,
+  onPageChange,
+  onHighlightCreate,
+  onHighlightClick,
+  onClose,
+}: PdfPanelProps) {
+  if (isLoading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <p className="text-muted-foreground">Loading PDF...</p>
+      </div>
+    );
+  }
+
+  if (!pdfUrl) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <p className="text-muted-foreground">No PDF available</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative h-full">
+      {/* Close button (desktop only) */}
+      {!isMobile && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute right-2 top-2 z-10"
+          onClick={onClose}
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      )}
+
+      <PdfViewer
+        key={`${documentId}-${highlights.length}`}
+        fileUrl={pdfUrl}
+        currentPage={currentPage}
+        navigationTrigger={navigationTrigger}
+        onPageChange={onPageChange}
+        highlights={highlights}
+        onHighlightCreate={onHighlightCreate}
+        onHighlightClick={onHighlightClick}
+      />
+    </div>
+  );
+}
+
 interface DocumentViewerProps {
   documentId: string;
 }
@@ -28,6 +99,17 @@ export function DocumentViewer({ documentId }: DocumentViewerProps) {
     "collapsed"
   );
 
+  // Wrapper to validate page numbers before setting
+  const setCurrentPageWithValidation = useCallback((page: number | ((prev: number) => number)) => {
+    // Validate page number before setting
+    if (typeof page === 'number') {
+      if (page < 0 || page >= 10000) {
+        return; // Don't set invalid page numbers
+      }
+    }
+    setCurrentPage(page);
+  }, []);
+
   // Handle source click from chat - navigate to page and highlight regions
   const handleSourceClick = useCallback((source: SourceReference) => {
     setPdfVisible(true);
@@ -42,7 +124,7 @@ export function DocumentViewer({ documentId }: DocumentViewerProps) {
       if (validPositions.length > 0) {
         // Navigate to the first position's page (0-indexed)
         const targetPageIndex = validPositions[0].pageNumber - 1;
-        setCurrentPage(targetPageIndex);
+        setCurrentPageWithValidation(targetPageIndex);
         setNavigationTrigger((n) => n + 1); // Force re-navigation even if same page
 
         const newHighlight: Highlight = {
@@ -73,12 +155,12 @@ export function DocumentViewer({ documentId }: DocumentViewerProps) {
         });
       } else {
         // Fallback: navigate to source.page if no valid positions
-        setCurrentPage(source.page - 1);
+        setCurrentPageWithValidation(source.page - 1);
         setNavigationTrigger((n) => n + 1);
       }
     } else {
       // No positions available, just navigate to the page
-      setCurrentPage(source.page - 1);
+      setCurrentPageWithValidation(source.page - 1);
       setNavigationTrigger((n) => n + 1);
     }
   }, [isMobile]);
@@ -125,40 +207,22 @@ export function DocumentViewer({ documentId }: DocumentViewerProps) {
     </div>
   );
 
-  // PDF panel with close button
-  const pdfPanel = isLoadingUrl ? (
-    <div className="flex h-full items-center justify-center">
-      <p className="text-muted-foreground">Loading PDF...</p>
-    </div>
-  ) : pdfUrl ? (
-    <div className="relative h-full">
-      {/* Close button (desktop only) */}
-      {!isMobile && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute right-2 top-2 z-10"
-          onClick={() => setPdfVisible(false)}
-        >
-          <X className="h-4 w-4" />
-        </Button>
-      )}
+  const handleClosePdf = useCallback(() => setPdfVisible(false), []);
 
-      <PdfViewer
-        key={documentId}
-        fileUrl={pdfUrl}
-        currentPage={currentPage}
-        navigationTrigger={navigationTrigger}
-        onPageChange={setCurrentPage}
-        highlights={highlights}
-        onHighlightCreate={handleHighlightCreate}
-        onHighlightClick={handleHighlightClick}
-      />
-    </div>
-  ) : (
-    <div className="flex h-full items-center justify-center">
-      <p className="text-muted-foreground">No PDF available</p>
-    </div>
+  const pdfPanel = (
+    <PdfPanel
+      isLoading={isLoadingUrl}
+      pdfUrl={pdfUrl}
+      isMobile={isMobile}
+      documentId={documentId}
+      currentPage={currentPage}
+      navigationTrigger={navigationTrigger}
+      highlights={highlights}
+      onPageChange={setCurrentPageWithValidation}
+      onHighlightCreate={handleHighlightCreate}
+      onHighlightClick={handleHighlightClick}
+      onClose={handleClosePdf}
+    />
   );
 
   // Mobile layout with bottom sheet

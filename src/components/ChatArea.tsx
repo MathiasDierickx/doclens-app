@@ -333,27 +333,27 @@ export function ChatArea({ documentId, onSourceClick }: ChatAreaProps) {
   return (
     <div className="flex flex-col h-full bg-gradient-to-b from-background to-muted/30">
       {/* Document Header */}
-      <div className="border-b bg-white/50 backdrop-blur-sm px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
+      <div className="border-b bg-white/50 backdrop-blur-sm px-3 sm:px-6 py-3 sm:py-4">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center shrink-0">
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
+              width="20"
+              height="20"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
               strokeWidth="1.5"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className="text-primary"
+              className="text-primary sm:w-6 sm:h-6"
             >
               <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
               <polyline points="14 2 14 8 20 8" />
             </svg>
           </div>
-          <div>
-            <h2 className="font-semibold text-foreground">
+          <div className="min-w-0 flex-1">
+            <h2 className="font-semibold text-foreground text-sm sm:text-base truncate">
               {document?.filename || "Document"}
             </h2>
             <p className="text-xs text-muted-foreground">
@@ -366,30 +366,30 @@ export function ChatArea({ documentId, onSourceClick }: ChatAreaProps) {
       </div>
 
       {/* Chat Messages */}
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto p-3 sm:p-6">
         {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center mb-6">
+          <div className="flex flex-col items-center justify-center h-full text-center px-2">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center mb-4 sm:mb-6">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                width="36"
-                height="36"
+                width="28"
+                height="28"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="1.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className="text-primary"
+                className="text-primary sm:w-9 sm:h-9"
               >
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </svg>
             </div>
-            <h3 className="text-lg font-semibold text-foreground mb-2">Start a Conversation</h3>
-            <p className="text-muted-foreground mb-8 max-w-md">
+            <h3 className="text-base sm:text-lg font-semibold text-foreground mb-2">Start a Conversation</h3>
+            <p className="text-sm sm:text-base text-muted-foreground mb-6 sm:mb-8 max-w-md">
               Ask questions about your document and get instant answers with source references
             </p>
-            <div className="grid gap-3 sm:grid-cols-2 max-w-lg">
+            <div className="grid gap-2 sm:gap-3 grid-cols-1 sm:grid-cols-2 max-w-lg w-full">
               <Card
                 className="cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-[1.02] hover:border-primary/30 border-2 border-transparent bg-white"
                 onClick={() =>
@@ -425,7 +425,7 @@ export function ChatArea({ documentId, onSourceClick }: ChatAreaProps) {
             </div>
           </div>
         ) : (
-          <div className="space-y-6 max-w-3xl mx-auto">
+          <div className="space-y-4 sm:space-y-6 max-w-3xl mx-auto">
             {messages.map((message) => (
               <div
                 key={message.id}
@@ -433,8 +433,8 @@ export function ChatArea({ documentId, onSourceClick }: ChatAreaProps) {
                   message.role === "user" ? "justify-end" : "justify-start"
                 }`}
               >
-                <div className={`flex items-start gap-3 max-w-[85%] ${message.role === "user" ? "flex-row-reverse" : ""}`}>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                <div className={`flex items-start gap-2 sm:gap-3 max-w-[90%] sm:max-w-[85%] ${message.role === "user" ? "flex-row-reverse" : ""}`}>
+                  <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 ${
                     message.role === "user"
                       ? "bg-gradient-to-br from-primary to-accent"
                       : "bg-gradient-to-br from-accent/80 to-primary/80"

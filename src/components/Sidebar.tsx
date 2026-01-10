@@ -5,13 +5,16 @@ import {
   useListDocumentsQuery,
   useDeleteDocumentMutation,
 } from "@/store/api/generatedApi";
+import { X } from "lucide-react";
 
 interface SidebarProps {
   selectedDocumentId: string | null;
   onSelectDocument: (documentId: string | null) => void;
+  onClose?: () => void;
+  isMobile?: boolean;
 }
 
-export function Sidebar({ selectedDocumentId, onSelectDocument }: SidebarProps) {
+export function Sidebar({ selectedDocumentId, onSelectDocument, onClose, isMobile }: SidebarProps) {
   const { data, isLoading } = useListDocumentsQuery();
   const [deleteDocument] = useDeleteDocumentMutation();
 
@@ -31,10 +34,22 @@ export function Sidebar({ selectedDocumentId, onSelectDocument }: SidebarProps) 
   };
 
   return (
-    <aside className="w-72 bg-sidebar text-sidebar-foreground flex flex-col shadow-xl">
+    <aside className={`${isMobile ? 'w-[280px]' : 'w-72'} h-full bg-sidebar text-sidebar-foreground flex flex-col shadow-xl`}>
       {/* Sidebar Header */}
-      <div className="p-5 border-b border-sidebar-border">
-        <h2 className="text-lg font-semibold mb-4 text-sidebar-foreground/90">Documents</h2>
+      <div className="p-4 sm:p-5 border-b border-sidebar-border">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-sidebar-foreground/90">Documents</h2>
+          {isMobile && onClose && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+              onClick={onClose}
+            >
+              <X className="h-5 w-5" />
+            </Button>
+          )}
+        </div>
         <Button
           className="w-full justify-center gap-2 bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-opacity text-white font-medium shadow-lg"
           onClick={() => onSelectDocument(null)}
