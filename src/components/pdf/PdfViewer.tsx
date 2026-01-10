@@ -1,17 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Viewer, Worker, SpecialZoomLevel } from "@react-pdf-viewer/core";
-import { defaultLayoutPlugin, DefaultLayoutPlugin } from "@react-pdf-viewer/default-layout";
+import { defaultLayoutPlugin } from "@react-pdf-viewer/default-layout";
 import {
   highlightPlugin,
-  HighlightPlugin,
   MessageIcon,
   RenderHighlightContentProps,
   RenderHighlightTargetProps,
   RenderHighlightsProps,
 } from "@react-pdf-viewer/highlight";
-import { pageNavigationPlugin, PageNavigationPlugin } from "@react-pdf-viewer/page-navigation";
+import { pageNavigationPlugin } from "@react-pdf-viewer/page-navigation";
 import { Button } from "@/components/ui/button";
 
 import "@react-pdf-viewer/page-navigation/lib/styles/index.css";
@@ -104,6 +103,74 @@ interface PdfViewerProps {
   onHighlightClick?: (highlight: Highlight) => void;
 }
 
+// Global refs for callbacks - allows plugins to access latest values
+const globalCallbacks = {
+  onHighlightCreate: undefined as ((highlight: Omit<Highlight, "id">) => void) | undefined,
+  onHighlightClick: undefined as ((highlight: Highlight) => void) | undefined,
+  highlights: [] as Highlight[],
+};
+
+// Create plugins once at module level (outside React component)
+const pageNavPlugin = pageNavigationPlugin();
+
+const highlightPluginInstance = highlightPlugin({
+  renderHighlightTarget: (props: RenderHighlightTargetProps) => (
+    <div
+      className="absolute z-10 flex items-center gap-1 rounded-md bg-primary p-1 shadow-lg"
+      style={{
+        left: `${props.selectionRegion.left}%`,
+        top: `${props.selectionRegion.top + props.selectionRegion.height}%`,
+        transform: "translateY(8px)",
+      }}
+    >
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-6 px-2 text-xs text-primary-foreground hover:bg-primary/80"
+        onClick={props.toggle}
+      >
+        <MessageIcon /> Add Note
+      </Button>
+    </div>
+  ),
+  renderHighlightContent: (props: RenderHighlightContentProps) => (
+    <HighlightContentPopup
+      props={props}
+      onHighlightCreate={globalCallbacks.onHighlightCreate}
+    />
+  ),
+  renderHighlights: (props: RenderHighlightsProps) => (
+    <div>
+      {globalCallbacks.highlights
+        .filter((h) => h.highlightAreas?.some((a) => a.pageIndex === props.pageIndex))
+        .map((highlight) => (
+          <div key={highlight.id}>
+            {highlight.highlightAreas
+              ?.filter((area) => area.pageIndex === props.pageIndex)
+              .map((area, idx) => (
+                <div
+                  key={idx}
+                  className="absolute cursor-pointer bg-yellow-300/40 transition-colors hover:bg-yellow-300/60"
+                  style={{
+                    left: `${area.left}%`,
+                    top: `${area.top}%`,
+                    width: `${area.width}%`,
+                    height: `${area.height}%`,
+                  }}
+                  onClick={() => globalCallbacks.onHighlightClick?.(highlight)}
+                  title={highlight.content || highlight.quote}
+                />
+              ))}
+          </div>
+        ))}
+    </div>
+  ),
+});
+
+const defaultLayoutPluginInstance = defaultLayoutPlugin({
+  sidebarTabs: (defaultTabs) => defaultTabs.length > 0 ? [defaultTabs[0]] : [],
+});
+
 export function PdfViewer({
   fileUrl,
   initialPage = 0,
@@ -117,96 +184,17 @@ export function PdfViewer({
   const [isReady, setIsReady] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Store callbacks in refs so plugins can access latest values
-  const onHighlightCreateRef = useRef(onHighlightCreate);
-  const onHighlightClickRef = useRef(onHighlightClick);
-  const highlightsRef = useRef(highlights);
-
-  // Update refs when props change
-  onHighlightCreateRef.current = onHighlightCreate;
-  onHighlightClickRef.current = onHighlightClick;
-  highlightsRef.current = highlights;
+  // Update global callbacks so plugin render functions access latest values
+  globalCallbacks.onHighlightCreate = onHighlightCreate;
+  globalCallbacks.onHighlightClick = onHighlightClick;
+  globalCallbacks.highlights = highlights;
 
   // Track page changes
-  const handlePageChange = (e: { currentPage: number }) => {
+  const handlePageChange = useCallback((e: { currentPage: number }) => {
     onPageChange?.(e.currentPage);
-  };
+  }, [onPageChange]);
 
-  // Create plugins once using refs (not useMemo to avoid hooks-inside-hooks issue)
-  const pageNavPluginRef = useRef<PageNavigationPlugin | null>(null);
-  const highlightPluginRef = useRef<HighlightPlugin | null>(null);
-  const defaultLayoutPluginRef = useRef<DefaultLayoutPlugin | null>(null);
-
-  // Lazy initialize plugins on first render only
-  if (pageNavPluginRef.current === null) {
-    pageNavPluginRef.current = pageNavigationPlugin();
-  }
-
-  if (highlightPluginRef.current === null) {
-    highlightPluginRef.current = highlightPlugin({
-      renderHighlightTarget: (props: RenderHighlightTargetProps) => (
-        <div
-          className="absolute z-10 flex items-center gap-1 rounded-md bg-primary p-1 shadow-lg"
-          style={{
-            left: `${props.selectionRegion.left}%`,
-            top: `${props.selectionRegion.top + props.selectionRegion.height}%`,
-            transform: "translateY(8px)",
-          }}
-        >
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-6 px-2 text-xs text-primary-foreground hover:bg-primary/80"
-            onClick={props.toggle}
-          >
-            <MessageIcon /> Add Note
-          </Button>
-        </div>
-      ),
-      renderHighlightContent: (props: RenderHighlightContentProps) => (
-        <HighlightContentPopup
-          props={props}
-          onHighlightCreate={onHighlightCreateRef.current}
-        />
-      ),
-      renderHighlights: (props: RenderHighlightsProps) => (
-        <div>
-          {highlightsRef.current
-            .filter((h) => h.highlightAreas?.some((a) => a.pageIndex === props.pageIndex))
-            .map((highlight) => (
-              <div key={highlight.id}>
-                {highlight.highlightAreas
-                  ?.filter((area) => area.pageIndex === props.pageIndex)
-                  .map((area, idx) => (
-                    <div
-                      key={idx}
-                      className="absolute cursor-pointer bg-yellow-300/40 transition-colors hover:bg-yellow-300/60"
-                      style={{
-                        left: `${area.left}%`,
-                        top: `${area.top}%`,
-                        width: `${area.width}%`,
-                        height: `${area.height}%`,
-                      }}
-                      onClick={() => onHighlightClickRef.current?.(highlight)}
-                      title={highlight.content || highlight.quote}
-                    />
-                  ))}
-              </div>
-            ))}
-        </div>
-      ),
-    });
-  }
-
-  if (defaultLayoutPluginRef.current === null) {
-    defaultLayoutPluginRef.current = defaultLayoutPlugin({
-      sidebarTabs: (defaultTabs) => defaultTabs.length > 0 ? [defaultTabs[0]] : [],
-    });
-  }
-
-  const { jumpToPage } = pageNavPluginRef.current;
-  const jumpToPageRef = useRef(jumpToPage);
-  jumpToPageRef.current = jumpToPage;
+  const { jumpToPage } = pageNavPlugin;
 
   // Navigate to page when ready or when currentPage/navigationTrigger changes
   useEffect(() => {
@@ -214,11 +202,11 @@ export function PdfViewer({
 
     // Small delay to ensure PDF layout is complete after becoming visible
     const timeoutId = setTimeout(() => {
-      jumpToPageRef.current(currentPage);
+      jumpToPage(currentPage);
     }, 50);
 
     return () => clearTimeout(timeoutId);
-  }, [currentPage, navigationTrigger, isReady]);
+  }, [currentPage, navigationTrigger, isReady, jumpToPage]);
 
   return (
     <div ref={containerRef} className="h-full w-full">
@@ -226,9 +214,9 @@ export function PdfViewer({
         <Viewer
           fileUrl={fileUrl}
           plugins={[
-            defaultLayoutPluginRef.current,
-            highlightPluginRef.current,
-            pageNavPluginRef.current,
+            defaultLayoutPluginInstance,
+            highlightPluginInstance,
+            pageNavPlugin,
           ]}
           initialPage={initialPage}
           defaultScale={SpecialZoomLevel.PageWidth}
