@@ -179,7 +179,7 @@ export function PdfViewer({
   }), []);
 
   const defaultLayoutPluginInstance = useMemo(() => defaultLayoutPlugin({
-    sidebarTabs: (defaultTabs) => [defaultTabs[0]], // Only thumbnails tab
+    sidebarTabs: (defaultTabs) => defaultTabs?.length > 0 ? [defaultTabs[0]] : [], // Only thumbnails tab
   }), []);
 
   // Store jumpToPage in a ref so we can use it in effects without dependency issues
