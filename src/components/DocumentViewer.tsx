@@ -48,16 +48,20 @@ export function DocumentViewer({ documentId }: DocumentViewerProps) {
           pageIndex: targetPageIndex,
           content: "",
           quote: source.text,
-          highlightAreas: validPositions.map((pos) => ({
-            pageIndex: pos.pageNumber - 1,
-            // Convert from inches to percentage of page
-            // The bounding box from Document Intelligence is in inches
-            // Using standard US Letter page size (8.5 x 11 inches)
-            left: (pos.boundingBox!.x / 8.5) * 100,
-            top: (pos.boundingBox!.y / 11) * 100,
-            width: (pos.boundingBox!.width / 8.5) * 100,
-            height: (pos.boundingBox!.height / 11) * 100,
-          })),
+          highlightAreas: validPositions.map((pos) => {
+            // Use actual page dimensions from backend, fallback to US Letter
+            const pageWidth = pos.pageWidth ?? 8.5;
+            const pageHeight = pos.pageHeight ?? 11;
+
+            return {
+              pageIndex: pos.pageNumber - 1,
+              // Convert from inches to percentage of page
+              left: (pos.boundingBox!.x / pageWidth) * 100,
+              top: (pos.boundingBox!.y / pageHeight) * 100,
+              width: (pos.boundingBox!.width / pageWidth) * 100,
+              height: (pos.boundingBox!.height / pageHeight) * 100,
+            };
+          }),
         };
 
         // Replace existing source highlights with new one

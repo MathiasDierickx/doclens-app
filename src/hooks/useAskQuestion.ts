@@ -13,6 +13,8 @@ export interface SourceReference {
     };
     charOffset: number;
     charLength: number;
+    pageWidth?: number;   // Page width in inches for coordinate conversion
+    pageHeight?: number;  // Page height in inches for coordinate conversion
   }>;
 }
 

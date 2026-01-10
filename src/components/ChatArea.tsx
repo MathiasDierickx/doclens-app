@@ -75,6 +75,8 @@ export function ChatArea({ documentId, onSourceClick }: ChatAreaProps) {
           } : undefined,
           charOffset: p.charOffset ?? 0,
           charLength: p.charLength ?? 0,
+          pageWidth: p.pageWidth ?? undefined,
+          pageHeight: p.pageHeight ?? undefined,
         })),
       })),
     }));

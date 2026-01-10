@@ -179,6 +179,8 @@ export type TextPosition = {
   boundingBox?: BoundingBox;
   charOffset?: number;
   charLength?: number;
+  pageWidth?: number | null;
+  pageHeight?: number | null;
 };
 export type SourceReference = {
   page?: number;
