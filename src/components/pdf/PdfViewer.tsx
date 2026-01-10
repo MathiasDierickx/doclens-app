@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { Viewer, Worker, SpecialZoomLevel } from "@react-pdf-viewer/core";
 import { defaultLayoutPlugin } from "@react-pdf-viewer/default-layout";
 import {
@@ -40,6 +40,8 @@ interface PdfViewerProps {
   initialPage?: number;
   /** Current page to navigate to (0-indexed) */
   currentPage?: number;
+  /** Trigger to force navigation even to the same page */
+  navigationTrigger?: number;
   /** Callback when page changes */
   onPageChange?: (pageIndex: number) => void;
   /** Callback when a highlight is created */
@@ -54,6 +56,7 @@ export function PdfViewer({
   fileUrl,
   initialPage = 0,
   currentPage,
+  navigationTrigger,
   onPageChange,
   onHighlightCreate,
   highlights = [],
@@ -61,8 +64,6 @@ export function PdfViewer({
 }: PdfViewerProps) {
   const [isReady, setIsReady] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  // Track pending page navigation for when PDF loads
-  const pendingPageRef = useRef<number | null>(currentPage ?? null);
 
   // Track page changes
   const handlePageChange = (e: { currentPage: number }) => {
@@ -134,7 +135,7 @@ export function PdfViewer({
   };
 
   // Render existing highlights
-  const renderHighlights = (props: RenderHighlightsProps) => (
+  const renderHighlights = useCallback((props: RenderHighlightsProps) => (
     <div>
       {highlights
         .filter((h) => h.highlightAreas.some((a) => a.pageIndex === props.pageIndex))
@@ -159,41 +160,37 @@ export function PdfViewer({
           </div>
         ))}
     </div>
-  );
+  ), [highlights, onHighlightClick]);
 
-  // Initialize plugins
-  const pageNavigationPluginInstance = pageNavigationPlugin();
+  // Initialize plugins - memoize to prevent recreation on every render
+  const pageNavigationPluginInstance = useMemo(() => pageNavigationPlugin(), []);
   const { jumpToPage } = pageNavigationPluginInstance;
 
-  const highlightPluginInstance = highlightPlugin({
+  const highlightPluginInstance = useMemo(() => highlightPlugin({
     renderHighlightTarget,
     renderHighlightContent,
     renderHighlights,
-  });
+  }), [renderHighlights]);
 
-  const defaultLayoutPluginInstance = defaultLayoutPlugin({
+  const defaultLayoutPluginInstance = useMemo(() => defaultLayoutPlugin({
     sidebarTabs: (defaultTabs) => [defaultTabs[0]], // Only thumbnails tab
-  });
+  }), []);
 
-  // Track currentPage changes while not ready
-  useEffect(() => {
-    if (currentPage !== undefined) {
-      pendingPageRef.current = currentPage;
-    }
-  }, [currentPage]);
+  // Store jumpToPage in a ref so we can use it in effects without dependency issues
+  const jumpToPageRef = useRef(jumpToPage);
+  jumpToPageRef.current = jumpToPage;
 
-  // Navigate to page when ready or when currentPage prop changes
+  // Navigate to page when ready or when currentPage/navigationTrigger changes
   useEffect(() => {
-    if (isReady) {
-      // Check if there's a pending page to navigate to
-      if (pendingPageRef.current !== null) {
-        jumpToPage(pendingPageRef.current);
-        pendingPageRef.current = null;
-      } else if (currentPage !== undefined) {
-        jumpToPage(currentPage);
-      }
-    }
-  }, [currentPage, isReady, jumpToPage]);
+    if (!isReady || currentPage === undefined) return;
+
+    // Small delay to ensure PDF layout is complete after becoming visible
+    const timeoutId = setTimeout(() => {
+      jumpToPageRef.current(currentPage);
+    }, 50);
+
+    return () => clearTimeout(timeoutId);
+  }, [currentPage, navigationTrigger, isReady]);
 
   return (
     <div ref={containerRef} className="h-full w-full">

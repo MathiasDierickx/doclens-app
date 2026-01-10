@@ -22,6 +22,7 @@ export function DocumentViewer({ documentId }: DocumentViewerProps) {
   // PDF viewer state
   const [pdfVisible, setPdfVisible] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
+  const [navigationTrigger, setNavigationTrigger] = useState(0); // Force re-navigation
   const [highlights, setHighlights] = useState<Highlight[]>([]);
   const [sheetState, setSheetState] = useState<"collapsed" | "half" | "expanded">(
     "collapsed"
@@ -42,6 +43,7 @@ export function DocumentViewer({ documentId }: DocumentViewerProps) {
         // Navigate to the first position's page (0-indexed)
         const targetPageIndex = validPositions[0].pageNumber - 1;
         setCurrentPage(targetPageIndex);
+        setNavigationTrigger((n) => n + 1); // Force re-navigation even if same page
 
         const newHighlight: Highlight = {
           id: `source-${Date.now()}`,
@@ -72,10 +74,12 @@ export function DocumentViewer({ documentId }: DocumentViewerProps) {
       } else {
         // Fallback: navigate to source.page if no valid positions
         setCurrentPage(source.page - 1);
+        setNavigationTrigger((n) => n + 1);
       }
     } else {
       // No positions available, just navigate to the page
       setCurrentPage(source.page - 1);
+      setNavigationTrigger((n) => n + 1);
     }
   }, [isMobile]);
 
@@ -144,6 +148,7 @@ export function DocumentViewer({ documentId }: DocumentViewerProps) {
         key={documentId}
         fileUrl={pdfUrl}
         currentPage={currentPage}
+        navigationTrigger={navigationTrigger}
         onPageChange={setCurrentPage}
         highlights={highlights}
         onHighlightCreate={handleHighlightCreate}

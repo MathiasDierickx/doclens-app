@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { ApiHealthIndicator } from "@/components/ApiHealthIndicator";
 import { Sidebar } from "@/components/Sidebar";
 import { UploadArea } from "@/components/UploadArea";
@@ -8,6 +8,7 @@ import { DocumentViewer } from "@/components/DocumentViewer";
 
 export default function Home() {
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
+  const [uploadKey, setUploadKey] = useState(0); // Key to force UploadArea reset
 
   // Read document ID from URL on mount
   useEffect(() => {
@@ -19,8 +20,13 @@ export default function Home() {
   }, []);
 
   // Update URL when document changes
-  const handleSelectDocument = (documentId: string | null) => {
+  const handleSelectDocument = useCallback((documentId: string | null) => {
     setSelectedDocumentId(documentId);
+
+    // If going back to upload area, increment key to reset the component
+    if (documentId === null) {
+      setUploadKey((k) => k + 1);
+    }
 
     const url = new URL(window.location.href);
     if (documentId) {
@@ -29,7 +35,7 @@ export default function Home() {
       url.searchParams.delete("doc");
     }
     window.history.pushState({}, "", url.toString());
-  };
+  }, []);
 
   return (
     <div className="flex h-screen bg-background">
@@ -79,7 +85,7 @@ export default function Home() {
           {selectedDocumentId ? (
             <DocumentViewer documentId={selectedDocumentId} />
           ) : (
-            <UploadArea onUploadComplete={handleSelectDocument} />
+            <UploadArea key={uploadKey} onUploadComplete={handleSelectDocument} />
           )}
         </main>
       </div>
