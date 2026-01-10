@@ -8,9 +8,96 @@ import { Progress } from "@/components/ui/progress";
 import { useGetDocumentQuery, useGetChatSessionsQuery, useGetChatHistoryQuery, api } from "@/store/api/generatedApi";
 import { useAskQuestion, SourceReference } from "@/hooks/useAskQuestion";
 import { useDispatch } from "react-redux";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
 // Re-export for use in other components
 export type { SourceReference } from "@/hooks/useAskQuestion";
+
+const MAX_VISIBLE_SOURCES = 3;
+
+interface SourcesListProps {
+  sources: SourceReference[];
+  onSourceClick?: (source: SourceReference) => void;
+  messageId: string;
+}
+
+function SourcesList({ sources, onSourceClick, messageId }: SourcesListProps) {
+  const [expanded, setExpanded] = useState(false);
+
+  const visibleSources = expanded ? sources : sources.slice(0, MAX_VISIBLE_SOURCES);
+  const hiddenCount = sources.length - MAX_VISIBLE_SOURCES;
+  const hasMore = sources.length > MAX_VISIBLE_SOURCES;
+
+  return (
+    <div className="mt-4 space-y-2">
+      <p className="text-xs font-semibold text-primary/80 flex items-center gap-1">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Sources ({sources.length})
+      </p>
+      {visibleSources.map((source, idx) => (
+        <Card
+          key={`${messageId}-source-${idx}`}
+          className={`bg-gradient-to-r from-muted/50 to-muted/30 border-primary/10 ${
+            onSourceClick
+              ? "cursor-pointer transition-all duration-200 hover:shadow-md hover:border-primary/30"
+              : ""
+          }`}
+          onClick={() => onSourceClick?.(source)}
+        >
+          <CardHeader className="p-3 pb-1">
+            <CardTitle className="text-xs font-semibold flex items-center justify-between text-primary">
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary">Page {source.page}</span>
+                {onSourceClick && (
+                  <span className="text-[10px] text-muted-foreground font-normal">
+                    Click to view
+                  </span>
+                )}
+              </div>
+              {source.relevanceScore !== undefined && (
+                <span className="text-[10px] text-muted-foreground font-normal">
+                  {Math.round(source.relevanceScore * 100)}% match
+                </span>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-3 pt-0 space-y-2">
+            {source.relevanceScore !== undefined && (
+              <Progress
+                value={source.relevanceScore * 100}
+                className="h-1.5"
+              />
+            )}
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {source.text}
+            </p>
+          </CardContent>
+        </Card>
+      ))}
+      {hasMore && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setExpanded(!expanded);
+          }}
+          className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 font-medium transition-colors py-1"
+        >
+          {expanded ? (
+            <>
+              <ChevronUp className="w-3.5 h-3.5" />
+              Show less
+            </>
+          ) : (
+            <>
+              <ChevronDown className="w-3.5 h-3.5" />
+              View {hiddenCount} more source{hiddenCount > 1 ? "s" : ""}
+            </>
+          )}
+        </button>
+      )}
+    </div>
+  );
+}
 
 interface Message {
   id: string;
@@ -365,52 +452,11 @@ export function ChatArea({ documentId, onSourceClick }: ChatAreaProps) {
                     ) : null}
 
                     {message.sources && message.sources.length > 0 && (
-                      <div className="mt-4 space-y-2">
-                        <p className="text-xs font-semibold text-primary/80 flex items-center gap-1">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
-                          Sources
-                        </p>
-                        {message.sources.map((source, idx) => (
-                          <Card
-                            key={idx}
-                            className={`bg-gradient-to-r from-muted/50 to-muted/30 border-primary/10 ${
-                              onSourceClick
-                                ? "cursor-pointer transition-all duration-200 hover:shadow-md hover:border-primary/30"
-                                : ""
-                            }`}
-                            onClick={() => onSourceClick?.(source)}
-                          >
-                            <CardHeader className="p-3 pb-1">
-                              <CardTitle className="text-xs font-semibold flex items-center justify-between text-primary">
-                                <div className="flex items-center gap-2">
-                                  <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary">Page {source.page}</span>
-                                  {onSourceClick && (
-                                    <span className="text-[10px] text-muted-foreground font-normal">
-                                      Click to view
-                                    </span>
-                                  )}
-                                </div>
-                                {source.relevanceScore !== undefined && (
-                                  <span className="text-[10px] text-muted-foreground font-normal">
-                                    {Math.round(source.relevanceScore * 100)}% match
-                                  </span>
-                                )}
-                              </CardTitle>
-                            </CardHeader>
-                            <CardContent className="p-3 pt-0 space-y-2">
-                              {source.relevanceScore !== undefined && (
-                                <Progress
-                                  value={source.relevanceScore * 100}
-                                  className="h-1.5"
-                                />
-                              )}
-                              <p className="text-xs text-muted-foreground leading-relaxed">
-                                {source.text}
-                              </p>
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
+                      <SourcesList
+                        sources={message.sources}
+                        onSourceClick={onSourceClick}
+                        messageId={message.id}
+                      />
                     )}
                   </div>
                 </div>
