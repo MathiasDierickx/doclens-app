@@ -1,13 +1,23 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Viewer, Worker, SpecialZoomLevel } from "@react-pdf-viewer/core";
 import { defaultLayoutPlugin } from "@react-pdf-viewer/default-layout";
+import {
+  highlightPlugin,
+  MessageIcon,
+  RenderHighlightContentProps,
+  RenderHighlightTargetProps,
+  RenderHighlightsProps,
+} from "@react-pdf-viewer/highlight";
 import { pageNavigationPlugin } from "@react-pdf-viewer/page-navigation";
+import { Button } from "@/components/ui/button";
 
 import "@react-pdf-viewer/page-navigation/lib/styles/index.css";
+
 import "@react-pdf-viewer/core/lib/styles/index.css";
 import "@react-pdf-viewer/default-layout/lib/styles/index.css";
+import "@react-pdf-viewer/highlight/lib/styles/index.css";
 
 export interface Highlight {
   id: string;
@@ -24,79 +34,22 @@ export interface Highlight {
 }
 
 interface PdfViewerProps {
+  /** URL to the PDF file */
   fileUrl: string;
+  /** Initial page to display (0-indexed) */
   initialPage?: number;
+  /** Current page to navigate to (0-indexed) */
   currentPage?: number;
+  /** Trigger to force navigation even to the same page */
   navigationTrigger?: number;
+  /** Callback when page changes */
   onPageChange?: (pageIndex: number) => void;
+  /** Callback when a highlight is created */
   onHighlightCreate?: (highlight: Omit<Highlight, "id">) => void;
+  /** Existing highlights to display */
   highlights?: Highlight[];
+  /** Callback when a highlight is clicked */
   onHighlightClick?: (highlight: Highlight) => void;
-}
-
-// Custom highlight overlay component that renders on top of PDF pages
-function HighlightOverlay({
-  highlights,
-  currentPageIndex,
-  onHighlightClick,
-}: {
-  highlights: Highlight[];
-  currentPageIndex: number;
-  onHighlightClick?: (highlight: Highlight) => void;
-}) {
-  // Filter highlights for current page
-  const pageHighlights = highlights.filter((h) =>
-    h.highlightAreas?.some((a) => a.pageIndex === currentPageIndex)
-  );
-
-  if (pageHighlights.length === 0) {
-    return null;
-  }
-
-  return (
-    <div
-      style={{
-        position: "absolute",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        pointerEvents: "none",
-        zIndex: 10,
-      }}
-    >
-      {pageHighlights.map((highlight) =>
-        highlight.highlightAreas
-          ?.filter((area) => area.pageIndex === currentPageIndex)
-          .map((area, idx) => (
-            <div
-              key={`${highlight.id}-${idx}`}
-              onClick={() => onHighlightClick?.(highlight)}
-              title={highlight.content || highlight.quote}
-              style={{
-                position: "absolute",
-                left: `${area.left}%`,
-                top: `${area.top}%`,
-                width: `${area.width}%`,
-                height: `${area.height}%`,
-                backgroundColor: "rgba(255, 235, 59, 0.5)",
-                border: "2px solid rgba(255, 193, 7, 0.8)",
-                borderRadius: "2px",
-                cursor: "pointer",
-                pointerEvents: "auto",
-                transition: "background-color 0.2s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "rgba(255, 235, 59, 0.7)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "rgba(255, 235, 59, 0.5)";
-              }}
-            />
-          ))
-      )}
-    </div>
-  );
 }
 
 export function PdfViewer({
@@ -105,137 +58,141 @@ export function PdfViewer({
   currentPage,
   navigationTrigger,
   onPageChange,
+  onHighlightCreate,
   highlights = [],
   onHighlightClick,
 }: PdfViewerProps) {
   const [isReady, setIsReady] = useState(false);
-  const [visiblePageIndex, setVisiblePageIndex] = useState(initialPage);
   const containerRef = useRef<HTMLDivElement>(null);
-  const jumpToPageRef = useRef<((pageIndex: number) => void) | null>(null);
-
-  // Create plugins
-  const pageNav = pageNavigationPlugin();
-  const defaultLayout = defaultLayoutPlugin({
-    sidebarTabs: (defaultTabs) => defaultTabs?.length > 0 ? [defaultTabs[0]] : [],
-  });
-
-  // Update jumpToPage ref
-  useEffect(() => {
-    jumpToPageRef.current = pageNav.jumpToPage;
-  }, [pageNav]);
-
-  // Navigate to page when ready or when currentPage/navigationTrigger changes
-  useEffect(() => {
-    if (!isReady || currentPage === undefined || !jumpToPageRef.current) return;
-
-    if (currentPage < 0) {
-      return;
-    }
-
-    const timeoutId = setTimeout(() => {
-      jumpToPageRef.current?.(currentPage);
-    }, 50);
-
-    return () => clearTimeout(timeoutId);
-  }, [currentPage, navigationTrigger, isReady]);
 
   // Track page changes
-  const handlePageChange = useCallback((e: { currentPage: number }) => {
-    if (e.currentPage >= 0 && e.currentPage < 10000 && isReady) {
-      setVisiblePageIndex(e.currentPage);
-      onPageChange?.(e.currentPage);
-    }
-  }, [isReady, onPageChange]);
+  const handlePageChange = (e: { currentPage: number }) => {
+    onPageChange?.(e.currentPage);
+  };
 
-  // Inject highlight overlays into page layers after render
-  useEffect(() => {
-    if (!isReady || highlights.length === 0) return;
+  // Render highlight target (the button that appears when selecting text)
+  const renderHighlightTarget = (props: RenderHighlightTargetProps) => (
+    <div
+      className="absolute z-10 flex items-center gap-1 rounded-md bg-primary p-1 shadow-lg"
+      style={{
+        left: `${props.selectionRegion.left}%`,
+        top: `${props.selectionRegion.top + props.selectionRegion.height}%`,
+        transform: "translateY(8px)",
+      }}
+    >
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-6 px-2 text-xs text-primary-foreground hover:bg-primary/80"
+        onClick={props.toggle}
+      >
+        <MessageIcon /> Add Note
+      </Button>
+    </div>
+  );
 
-    // Find all page layers in the PDF viewer
-    const injectHighlights = () => {
-      const pageContainers = containerRef.current?.querySelectorAll('.rpv-core__page-layer');
+  // Render highlight content (popup when editing a highlight)
+  const renderHighlightContent = (props: RenderHighlightContentProps) => {
+    const [note, setNote] = useState("");
 
-      pageContainers?.forEach((pageContainer, index) => {
-        // Remove any existing highlight overlays
-        const existingOverlay = pageContainer.querySelector('.custom-highlight-overlay');
-        if (existingOverlay) {
-          existingOverlay.remove();
-        }
-
-        // Get highlights for this page
-        const pageHighlights = highlights.filter((h) =>
-          h.highlightAreas?.some((a) => a.pageIndex === index)
-        );
-
-        if (pageHighlights.length === 0) return;
-
-        // Create overlay container
-        const overlay = document.createElement('div');
-        overlay.className = 'custom-highlight-overlay';
-        overlay.style.cssText = 'position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; z-index: 10;';
-
-        // Add highlight rectangles
-        pageHighlights.forEach((highlight) => {
-          highlight.highlightAreas
-            ?.filter((area) => area.pageIndex === index)
-            .forEach((area, idx) => {
-              const rect = document.createElement('div');
-              rect.style.cssText = `
-                position: absolute;
-                left: ${area.left}%;
-                top: ${area.top}%;
-                width: ${area.width}%;
-                height: ${area.height}%;
-                background-color: rgba(255, 235, 59, 0.5);
-                border: 2px solid rgba(255, 193, 7, 0.8);
-                border-radius: 2px;
-                cursor: pointer;
-                pointer-events: auto;
-                transition: background-color 0.2s;
-              `;
-              rect.title = highlight.content || highlight.quote || '';
-
-              rect.addEventListener('mouseenter', () => {
-                rect.style.backgroundColor = 'rgba(255, 235, 59, 0.7)';
-              });
-              rect.addEventListener('mouseleave', () => {
-                rect.style.backgroundColor = 'rgba(255, 235, 59, 0.5)';
-              });
-              rect.addEventListener('click', () => {
-                onHighlightClick?.(highlight);
-              });
-
-              overlay.appendChild(rect);
-            });
-        });
-
-        // Make page container position relative if not already
-        const computedStyle = window.getComputedStyle(pageContainer);
-        if (computedStyle.position === 'static') {
-          (pageContainer as HTMLElement).style.position = 'relative';
-        }
-
-        pageContainer.appendChild(overlay);
+    const handleAdd = () => {
+      onHighlightCreate?.({
+        pageIndex: props.highlightAreas[0].pageIndex,
+        content: note,
+        highlightAreas: props.highlightAreas,
+        quote: props.selectedText,
       });
+      props.cancel();
     };
 
-    // Run immediately and also after a short delay to catch any late renders
-    injectHighlights();
-    const timeoutId = setTimeout(injectHighlights, 100);
-    const timeoutId2 = setTimeout(injectHighlights, 500);
+    return (
+      <div
+        className="absolute z-10 w-64 rounded-lg border bg-background p-3 shadow-lg"
+        style={{
+          left: `${props.selectionRegion.left}%`,
+          top: `${props.selectionRegion.top + props.selectionRegion.height}%`,
+          transform: "translateY(8px)",
+        }}
+      >
+        <textarea
+          className="mb-2 w-full rounded border p-2 text-sm"
+          placeholder="Add a note..."
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          rows={3}
+          autoFocus
+        />
+        <div className="flex justify-end gap-2">
+          <Button size="sm" variant="ghost" onClick={props.cancel}>
+            Cancel
+          </Button>
+          <Button size="sm" onClick={handleAdd}>
+            Save
+          </Button>
+        </div>
+      </div>
+    );
+  };
 
-    return () => {
-      clearTimeout(timeoutId);
-      clearTimeout(timeoutId2);
-    };
-  }, [isReady, highlights, onHighlightClick, visiblePageIndex]);
+  // Render existing highlights
+  const renderHighlights = (props: RenderHighlightsProps) => (
+    <div>
+      {highlights
+        .filter((h) => h.highlightAreas.some((a) => a.pageIndex === props.pageIndex))
+        .map((highlight) => (
+          <div key={highlight.id}>
+            {highlight.highlightAreas
+              .filter((area) => area.pageIndex === props.pageIndex)
+              .map((area, idx) => (
+                <div
+                  key={idx}
+                  className="absolute cursor-pointer bg-yellow-300/40 transition-colors hover:bg-yellow-300/60"
+                  style={{
+                    left: `${area.left}%`,
+                    top: `${area.top}%`,
+                    width: `${area.width}%`,
+                    height: `${area.height}%`,
+                  }}
+                  onClick={() => onHighlightClick?.(highlight)}
+                  title={highlight.content || highlight.quote}
+                />
+              ))}
+          </div>
+        ))}
+    </div>
+  );
+
+  // Initialize plugins
+  const pageNavigationPluginInstance = pageNavigationPlugin();
+  const { jumpToPage } = pageNavigationPluginInstance;
+
+  const highlightPluginInstance = highlightPlugin({
+    renderHighlightTarget,
+    renderHighlightContent,
+    renderHighlights,
+  });
+
+  const defaultLayoutPluginInstance = defaultLayoutPlugin({
+    sidebarTabs: (defaultTabs) => [defaultTabs[0]], // Only thumbnails tab
+  });
+
+  // Navigate to page when currentPage prop changes or navigationTrigger fires
+  useEffect(() => {
+    if (currentPage !== undefined && isReady) {
+      // Small delay to ensure PDF layout is complete
+      const timeoutId = setTimeout(() => {
+        jumpToPage(currentPage);
+      }, 50);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [currentPage, navigationTrigger, isReady, jumpToPage]);
 
   return (
     <div ref={containerRef} className="h-full w-full">
       <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js">
         <Viewer
           fileUrl={fileUrl}
-          plugins={[defaultLayout, pageNav]}
+          plugins={[defaultLayoutPluginInstance, highlightPluginInstance, pageNavigationPluginInstance]}
           initialPage={initialPage}
           defaultScale={SpecialZoomLevel.PageWidth}
           onPageChange={handlePageChange}
