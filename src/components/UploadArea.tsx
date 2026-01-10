@@ -291,9 +291,12 @@ export function UploadArea({ onUploadComplete }: UploadAreaProps) {
               <Progress value={getTotalProgress()} className="h-3 bg-muted" />
               <div className="absolute inset-0 h-3 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-gradient-to-r from-primary to-accent transition-all duration-300"
+                  className="h-full bg-gradient-to-r from-primary via-accent to-primary animate-gradient transition-all duration-300 relative"
                   style={{ width: `${getTotalProgress()}%` }}
-                />
+                >
+                  {/* Animated shimmer overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent animate-progress-shimmer" />
+                </div>
               </div>
             </div>
             {phase === "indexing" && (
@@ -407,14 +410,18 @@ function StepIndicator({
   return (
     <div className="flex flex-col items-center gap-1.5 px-3">
       <div
-        className={`w-3 h-3 rounded-full transition-all duration-300 ${
+        className={`w-3 h-3 rounded-full transition-all duration-300 relative overflow-hidden ${
           complete
             ? "bg-gradient-to-br from-green-400 to-emerald-500 shadow-sm"
             : active
-              ? "bg-gradient-to-br from-primary to-accent animate-pulse shadow-sm shadow-primary/50"
+              ? "shadow-md shadow-primary/50"
               : "bg-muted"
         }`}
-      />
+      >
+        {active && (
+          <div className="absolute inset-0 bg-gradient-to-r from-primary via-accent to-primary bg-[length:200%_100%] animate-shimmer" />
+        )}
+      </div>
       <span
         className={`text-xs font-medium ${
           complete
