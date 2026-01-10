@@ -429,7 +429,7 @@ export function ChatArea({ documentId, onSourceClick }: ChatAreaProps) {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask a question about this document..."
-              className="min-h-[52px] flex-1 resize-none pr-4 rounded-xl border-2 border-border/50 focus:border-primary/50 transition-colors bg-white shadow-sm"
+              className="min-h-[52px] flex-1 resize-none pr-4 py-3.5 rounded-xl border-2 border-border/50 focus:border-primary/50 transition-colors bg-white shadow-sm"
               rows={1}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
