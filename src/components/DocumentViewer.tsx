@@ -68,7 +68,7 @@ function PdfPanel({
       )}
 
       <PdfViewer
-        key={`${documentId}-${highlights.length}`}
+        key={documentId}
         fileUrl={pdfUrl}
         currentPage={currentPage}
         navigationTrigger={navigationTrigger}
@@ -112,6 +112,9 @@ export function DocumentViewer({ documentId }: DocumentViewerProps) {
 
   // Handle source click from chat - navigate to page and highlight regions
   const handleSourceClick = useCallback((source: SourceReference) => {
+    console.log("Source clicked:", source);
+    console.log("Positions:", source.positions);
+
     setPdfVisible(true);
     if (isMobile) {
       setSheetState("half");
@@ -148,10 +151,14 @@ export function DocumentViewer({ documentId }: DocumentViewerProps) {
           }),
         };
 
+        console.log("Created highlight:", newHighlight);
+
         // Replace existing source highlights with new one
         setHighlights((prev) => {
           const filtered = prev.filter((h) => !h.id.startsWith("source-"));
-          return [...filtered, newHighlight];
+          const updated = [...filtered, newHighlight];
+          console.log("Updated highlights:", updated);
+          return updated;
         });
       } else {
         // Fallback: navigate to source.page if no valid positions
