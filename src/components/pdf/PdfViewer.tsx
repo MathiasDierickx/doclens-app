@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { Viewer, Worker, SpecialZoomLevel } from "@react-pdf-viewer/core";
 import { defaultLayoutPlugin } from "@react-pdf-viewer/default-layout";
 import {
@@ -33,34 +33,41 @@ export interface Highlight {
   quote: string;
 }
 
-// Separate component for highlight content popup
+// Separate component for highlight content popup - must be outside main component
+// to use hooks properly
 function HighlightContentPopup({
-  props,
-  onHighlightCreate,
+  highlightAreas,
+  selectedText,
+  selectionRegion,
+  cancel,
+  onSave,
 }: {
-  props: RenderHighlightContentProps;
-  onHighlightCreate?: (highlight: Omit<Highlight, "id">) => void;
+  highlightAreas: RenderHighlightContentProps["highlightAreas"];
+  selectedText: string;
+  selectionRegion: RenderHighlightContentProps["selectionRegion"];
+  cancel: () => void;
+  onSave: (highlight: Omit<Highlight, "id">) => void;
 }) {
   const [note, setNote] = useState("");
 
   const handleAdd = () => {
-    if (props.highlightAreas && props.highlightAreas.length > 0) {
-      onHighlightCreate?.({
-        pageIndex: props.highlightAreas[0].pageIndex,
+    if (highlightAreas && highlightAreas.length > 0) {
+      onSave({
+        pageIndex: highlightAreas[0].pageIndex,
         content: note,
-        highlightAreas: props.highlightAreas,
-        quote: props.selectedText,
+        highlightAreas: highlightAreas,
+        quote: selectedText,
       });
     }
-    props.cancel();
+    cancel();
   };
 
   return (
     <div
       className="absolute z-10 w-64 rounded-lg border bg-background p-3 shadow-lg"
       style={{
-        left: `${props.selectionRegion.left}%`,
-        top: `${props.selectionRegion.top + props.selectionRegion.height}%`,
+        left: `${selectionRegion.left}%`,
+        top: `${selectionRegion.top + selectionRegion.height}%`,
         transform: "translateY(8px)",
       }}
     >
@@ -73,7 +80,7 @@ function HighlightContentPopup({
         autoFocus
       />
       <div className="flex justify-end gap-2">
-        <Button size="sm" variant="ghost" onClick={props.cancel}>
+        <Button size="sm" variant="ghost" onClick={cancel}>
           Cancel
         </Button>
         <Button size="sm" onClick={handleAdd}>
@@ -103,18 +110,36 @@ interface PdfViewerProps {
   onHighlightClick?: (highlight: Highlight) => void;
 }
 
-// Global refs for callbacks - allows plugins to access latest values
-const globalCallbacks = {
-  onHighlightCreate: undefined as ((highlight: Omit<Highlight, "id">) => void) | undefined,
-  onHighlightClick: undefined as ((highlight: Highlight) => void) | undefined,
-  highlights: [] as Highlight[],
-};
+export function PdfViewer({
+  fileUrl,
+  initialPage = 0,
+  currentPage,
+  navigationTrigger,
+  onPageChange,
+  onHighlightCreate,
+  highlights = [],
+  onHighlightClick,
+}: PdfViewerProps) {
+  const [isReady, setIsReady] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-// Create plugins once at module level (outside React component)
-const pageNavPlugin = pageNavigationPlugin();
+  // Store callbacks and data in refs so plugin render functions can access latest values
+  const onHighlightCreateRef = useRef(onHighlightCreate);
+  const onHighlightClickRef = useRef(onHighlightClick);
+  const highlightsRef = useRef(highlights);
 
-const highlightPluginInstance = highlightPlugin({
-  renderHighlightTarget: (props: RenderHighlightTargetProps) => (
+  // Update refs on each render
+  onHighlightCreateRef.current = onHighlightCreate;
+  onHighlightClickRef.current = onHighlightClick;
+  highlightsRef.current = highlights;
+
+  // Track page changes
+  const handlePageChange = useCallback((e: { currentPage: number }) => {
+    onPageChange?.(e.currentPage);
+  }, [onPageChange]);
+
+  // Render highlight target (the button that appears when selecting text)
+  const renderHighlightTarget = useCallback((props: RenderHighlightTargetProps) => (
     <div
       className="absolute z-10 flex items-center gap-1 rounded-md bg-primary p-1 shadow-lg"
       style={{
@@ -132,16 +157,23 @@ const highlightPluginInstance = highlightPlugin({
         <MessageIcon /> Add Note
       </Button>
     </div>
-  ),
-  renderHighlightContent: (props: RenderHighlightContentProps) => (
+  ), []);
+
+  // Render highlight content (popup when editing a highlight)
+  const renderHighlightContent = useCallback((props: RenderHighlightContentProps) => (
     <HighlightContentPopup
-      props={props}
-      onHighlightCreate={globalCallbacks.onHighlightCreate}
+      highlightAreas={props.highlightAreas}
+      selectedText={props.selectedText}
+      selectionRegion={props.selectionRegion}
+      cancel={props.cancel}
+      onSave={(highlight) => onHighlightCreateRef.current?.(highlight)}
     />
-  ),
-  renderHighlights: (props: RenderHighlightsProps) => (
+  ), []);
+
+  // Render existing highlights - use ref to always get latest highlights
+  const renderHighlights = useCallback((props: RenderHighlightsProps) => (
     <div>
-      {globalCallbacks.highlights
+      {highlightsRef.current
         .filter((h) => h.highlightAreas?.some((a) => a.pageIndex === props.pageIndex))
         .map((highlight) => (
           <div key={highlight.id}>
@@ -157,44 +189,32 @@ const highlightPluginInstance = highlightPlugin({
                     width: `${area.width}%`,
                     height: `${area.height}%`,
                   }}
-                  onClick={() => globalCallbacks.onHighlightClick?.(highlight)}
+                  onClick={() => onHighlightClickRef.current?.(highlight)}
                   title={highlight.content || highlight.quote}
                 />
               ))}
           </div>
         ))}
     </div>
-  ),
-});
+  ), []);
 
-const defaultLayoutPluginInstance = defaultLayoutPlugin({
-  sidebarTabs: (defaultTabs) => defaultTabs.length > 0 ? [defaultTabs[0]] : [],
-});
+  // Initialize plugins - memoize to prevent recreation on every render
+  const pageNavigationPluginInstance = useMemo(() => pageNavigationPlugin(), []);
+  const { jumpToPage } = pageNavigationPluginInstance;
 
-export function PdfViewer({
-  fileUrl,
-  initialPage = 0,
-  currentPage,
-  navigationTrigger,
-  onPageChange,
-  onHighlightCreate,
-  highlights = [],
-  onHighlightClick,
-}: PdfViewerProps) {
-  const [isReady, setIsReady] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const highlightPluginInstance = useMemo(() => highlightPlugin({
+    renderHighlightTarget,
+    renderHighlightContent,
+    renderHighlights,
+  }), [renderHighlightTarget, renderHighlightContent, renderHighlights]);
 
-  // Update global callbacks so plugin render functions access latest values
-  globalCallbacks.onHighlightCreate = onHighlightCreate;
-  globalCallbacks.onHighlightClick = onHighlightClick;
-  globalCallbacks.highlights = highlights;
+  const defaultLayoutPluginInstance = useMemo(() => defaultLayoutPlugin({
+    sidebarTabs: (defaultTabs) => defaultTabs?.length > 0 ? [defaultTabs[0]] : [],
+  }), []);
 
-  // Track page changes
-  const handlePageChange = useCallback((e: { currentPage: number }) => {
-    onPageChange?.(e.currentPage);
-  }, [onPageChange]);
-
-  const { jumpToPage } = pageNavPlugin;
+  // Store jumpToPage in a ref so we can use it in effects without dependency issues
+  const jumpToPageRef = useRef(jumpToPage);
+  jumpToPageRef.current = jumpToPage;
 
   // Navigate to page when ready or when currentPage/navigationTrigger changes
   useEffect(() => {
@@ -202,22 +222,18 @@ export function PdfViewer({
 
     // Small delay to ensure PDF layout is complete after becoming visible
     const timeoutId = setTimeout(() => {
-      jumpToPage(currentPage);
+      jumpToPageRef.current(currentPage);
     }, 50);
 
     return () => clearTimeout(timeoutId);
-  }, [currentPage, navigationTrigger, isReady, jumpToPage]);
+  }, [currentPage, navigationTrigger, isReady]);
 
   return (
     <div ref={containerRef} className="h-full w-full">
       <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js">
         <Viewer
           fileUrl={fileUrl}
-          plugins={[
-            defaultLayoutPluginInstance,
-            highlightPluginInstance,
-            pageNavPlugin,
-          ]}
+          plugins={[defaultLayoutPluginInstance, highlightPluginInstance, pageNavigationPluginInstance]}
           initialPage={initialPage}
           defaultScale={SpecialZoomLevel.PageWidth}
           onPageChange={handlePageChange}
