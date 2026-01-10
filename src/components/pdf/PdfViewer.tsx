@@ -33,6 +33,55 @@ export interface Highlight {
   quote: string;
 }
 
+// Separate component for highlight content to avoid hooks-in-useMemo issue
+function HighlightContentPopup({
+  props,
+  onHighlightCreate,
+}: {
+  props: RenderHighlightContentProps;
+  onHighlightCreate?: (highlight: Omit<Highlight, "id">) => void;
+}) {
+  const [note, setNote] = useState("");
+
+  const handleAdd = () => {
+    onHighlightCreate?.({
+      pageIndex: props.highlightAreas[0].pageIndex,
+      content: note,
+      highlightAreas: props.highlightAreas,
+      quote: props.selectedText,
+    });
+    props.cancel();
+  };
+
+  return (
+    <div
+      className="absolute z-10 w-64 rounded-lg border bg-background p-3 shadow-lg"
+      style={{
+        left: `${props.selectionRegion.left}%`,
+        top: `${props.selectionRegion.top + props.selectionRegion.height}%`,
+        transform: "translateY(8px)",
+      }}
+    >
+      <textarea
+        className="mb-2 w-full rounded border p-2 text-sm"
+        placeholder="Add a note..."
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        rows={3}
+        autoFocus
+      />
+      <div className="flex justify-end gap-2">
+        <Button size="sm" variant="ghost" onClick={props.cancel}>
+          Cancel
+        </Button>
+        <Button size="sm" onClick={handleAdd}>
+          Save
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 interface PdfViewerProps {
   /** URL to the PDF file */
   fileUrl: string;
@@ -91,48 +140,17 @@ export function PdfViewer({
     </div>
   );
 
+  // Store onHighlightCreate in a ref so we can access it in the render function
+  const onHighlightCreateRef = useRef(onHighlightCreate);
+  onHighlightCreateRef.current = onHighlightCreate;
+
   // Render highlight content (popup when editing a highlight)
-  const renderHighlightContent = (props: RenderHighlightContentProps) => {
-    const [note, setNote] = useState("");
-
-    const handleAdd = () => {
-      onHighlightCreate?.({
-        pageIndex: props.highlightAreas[0].pageIndex,
-        content: note,
-        highlightAreas: props.highlightAreas,
-        quote: props.selectedText,
-      });
-      props.cancel();
-    };
-
-    return (
-      <div
-        className="absolute z-10 w-64 rounded-lg border bg-background p-3 shadow-lg"
-        style={{
-          left: `${props.selectionRegion.left}%`,
-          top: `${props.selectionRegion.top + props.selectionRegion.height}%`,
-          transform: "translateY(8px)",
-        }}
-      >
-        <textarea
-          className="mb-2 w-full rounded border p-2 text-sm"
-          placeholder="Add a note..."
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          rows={3}
-          autoFocus
-        />
-        <div className="flex justify-end gap-2">
-          <Button size="sm" variant="ghost" onClick={props.cancel}>
-            Cancel
-          </Button>
-          <Button size="sm" onClick={handleAdd}>
-            Save
-          </Button>
-        </div>
-      </div>
-    );
-  };
+  const renderHighlightContent = useCallback(
+    (props: RenderHighlightContentProps) => (
+      <HighlightContentPopup props={props} onHighlightCreate={onHighlightCreateRef.current} />
+    ),
+    []
+  );
 
   // Render existing highlights
   const renderHighlights = useCallback((props: RenderHighlightsProps) => (
@@ -170,7 +188,7 @@ export function PdfViewer({
     renderHighlightTarget,
     renderHighlightContent,
     renderHighlights,
-  }), [renderHighlights]);
+  }), [renderHighlightContent, renderHighlights]);
 
   const defaultLayoutPluginInstance = useMemo(() => defaultLayoutPlugin({
     sidebarTabs: (defaultTabs) => [defaultTabs[0]], // Only thumbnails tab
