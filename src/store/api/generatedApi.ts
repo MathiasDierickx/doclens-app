@@ -186,6 +186,7 @@ export type SourceReference = {
   page?: number;
   text?: string;
   positions?: TextPosition[];
+  relevanceScore?: number;
 };
 export type ChatMessageDto = {
   role?: string;

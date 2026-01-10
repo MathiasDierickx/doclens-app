@@ -16,6 +16,7 @@ export interface SourceReference {
     pageWidth?: number;   // Page width in inches for coordinate conversion
     pageHeight?: number;  // Page height in inches for coordinate conversion
   }>;
+  relevanceScore?: number;  // Relevance score from 0.0 to 1.0 (higher = better match)
 }
 
 export interface AskQuestionResult {
