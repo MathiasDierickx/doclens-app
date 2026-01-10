@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
+import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { useGetDocumentQuery, useGetChatSessionsQuery, useGetChatHistoryQuery, api } from "@/store/api/generatedApi";
 import { useAskQuestion, SourceReference } from "@/hooks/useAskQuestion";
@@ -13,6 +14,20 @@ import { ChevronDown, ChevronUp, Trophy, Medal, Award } from "lucide-react";
 export type { SourceReference } from "@/hooks/useAskQuestion";
 
 const MAX_VISIBLE_SOURCES = 3;
+
+// Markdown content renderer with proper styling
+function MarkdownContent({ content, isStreaming }: { content: string; isStreaming?: boolean }) {
+  return (
+    <div className="prose prose-sm max-w-none dark:prose-invert prose-p:leading-relaxed prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-code:before:content-none prose-code:after:content-none prose-pre:bg-muted prose-pre:p-3 prose-pre:rounded-lg">
+      <ReactMarkdown>
+        {content}
+      </ReactMarkdown>
+      {isStreaming && (
+        <span className="inline-block w-2 h-4 ml-1 bg-current animate-pulse rounded-sm" />
+      )}
+    </div>
+  );
+}
 
 // Ranking badge configuration for top 3 sources
 const rankConfig = [
@@ -69,8 +84,8 @@ function SourcesList({ sources, onSourceClick, messageId }: SourcesListProps) {
             }`}
             onClick={() => onSourceClick?.(source)}
           >
-            <CardHeader className="p-3 pb-1">
-              <CardTitle className="text-xs font-semibold flex items-center justify-between text-primary">
+            <CardContent className="p-3">
+              <div className="text-xs font-semibold flex items-center justify-between text-primary">
                 <div className="flex items-center gap-2">
                   <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary">Page {source.page}</span>
                   {onSourceClick && (
@@ -80,12 +95,7 @@ function SourcesList({ sources, onSourceClick, messageId }: SourcesListProps) {
                   )}
                 </div>
                 {isTopThree && <RankBadge rank={originalIndex} />}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-3 pt-1">
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                {source.text}
-              </p>
+              </div>
             </CardContent>
           </Card>
         );
@@ -453,12 +463,11 @@ export function ChatArea({ documentId, onSourceClick }: ChatAreaProps) {
                     }`}
                   >
                     {message.content ? (
-                      <p className="whitespace-pre-wrap leading-relaxed">
-                        {message.content}
-                        {message.isStreaming && (
-                          <span className="inline-block w-2 h-4 ml-1 bg-current animate-pulse rounded-sm" />
-                        )}
-                      </p>
+                      message.role === "assistant" ? (
+                        <MarkdownContent content={message.content} isStreaming={message.isStreaming} />
+                      ) : (
+                        <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                      )
                     ) : message.isStreaming ? (
                       <div className="flex space-x-2 py-1">
                         <div className="h-2 w-2 animate-bounce rounded-full bg-primary/50" />
