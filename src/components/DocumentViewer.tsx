@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { ChatArea, SourceReference } from "@/components/ChatArea";
 import { PdfViewer, Highlight } from "@/components/pdf/PdfViewer";
@@ -93,8 +93,8 @@ export function DocumentViewer({ documentId }: DocumentViewerProps) {
     console.log("Highlight clicked:", highlight);
   }, []);
 
-  // Get PDF URL from download SAS token
-  const pdfUrl = downloadUrlData?.downloadUrl || "";
+  // Memoize PDF URL to prevent unnecessary re-fetches
+  const pdfUrl = useMemo(() => downloadUrlData?.downloadUrl || "", [downloadUrlData?.downloadUrl]);
 
   // Chat panel with PDF toggle button
   const chatPanel = (
@@ -137,6 +137,7 @@ export function DocumentViewer({ documentId }: DocumentViewerProps) {
       )}
 
       <PdfViewer
+        key={documentId}
         fileUrl={pdfUrl}
         currentPage={currentPage}
         onPageChange={setCurrentPage}

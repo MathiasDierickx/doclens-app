@@ -61,6 +61,8 @@ export function PdfViewer({
 }: PdfViewerProps) {
   const [isReady, setIsReady] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  // Track pending page navigation for when PDF loads
+  const pendingPageRef = useRef<number | null>(currentPage ?? null);
 
   // Track page changes
   const handlePageChange = (e: { currentPage: number }) => {
@@ -173,10 +175,23 @@ export function PdfViewer({
     sidebarTabs: (defaultTabs) => [defaultTabs[0]], // Only thumbnails tab
   });
 
-  // Navigate to page when currentPage prop changes
+  // Track currentPage changes while not ready
   useEffect(() => {
-    if (currentPage !== undefined && isReady) {
-      jumpToPage(currentPage);
+    if (currentPage !== undefined) {
+      pendingPageRef.current = currentPage;
+    }
+  }, [currentPage]);
+
+  // Navigate to page when ready or when currentPage prop changes
+  useEffect(() => {
+    if (isReady) {
+      // Check if there's a pending page to navigate to
+      if (pendingPageRef.current !== null) {
+        jumpToPage(pendingPageRef.current);
+        pendingPageRef.current = null;
+      } else if (currentPage !== undefined) {
+        jumpToPage(currentPage);
+      }
     }
   }, [currentPage, isReady, jumpToPage]);
 
