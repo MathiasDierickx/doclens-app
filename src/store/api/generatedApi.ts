@@ -1,5 +1,5 @@
 import { baseApi as api } from "./baseApi";
-export const addTagTypes = ["Documents", "System", "Chat"] as const;
+export const addTagTypes = ["Documents", "Chat", "System"] as const;
 const injectedRtkApi = api
   .enhanceEndpoints({
     addTagTypes,
@@ -13,6 +13,22 @@ const injectedRtkApi = api
           body: queryArg.askRequest,
         }),
         invalidatesTags: ["Documents"],
+      }),
+      getChatSessions: build.query<
+        GetChatSessionsApiResponse,
+        GetChatSessionsApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/documents/${queryArg.documentId}/chat-sessions`,
+        }),
+        providesTags: ["Chat"],
+      }),
+      getChatHistory: build.query<
+        GetChatHistoryApiResponse,
+        GetChatHistoryApiArg
+      >({
+        query: (queryArg) => ({ url: `/chat-sessions/${queryArg.sessionId}` }),
+        providesTags: ["Chat"],
       }),
       getUploadUrl: build.mutation<GetUploadUrlApiResponse, GetUploadUrlApiArg>(
         {
@@ -46,6 +62,15 @@ const injectedRtkApi = api
         }),
         invalidatesTags: ["Documents"],
       }),
+      getDownloadUrl: build.query<
+        GetDownloadUrlApiResponse,
+        GetDownloadUrlApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/documents/${queryArg.documentId}/download-url`,
+        }),
+        providesTags: ["Documents"],
+      }),
       getHealth: build.query<GetHealthApiResponse, GetHealthApiArg>({
         query: () => ({ url: `/health` }),
         providesTags: ["System"],
@@ -68,31 +93,6 @@ const injectedRtkApi = api
         }),
         providesTags: ["Documents"],
       }),
-      getDownloadUrl: build.query<
-        GetDownloadUrlApiResponse,
-        GetDownloadUrlApiArg
-      >({
-        query: (queryArg) => ({
-          url: `/documents/${queryArg.documentId}/download-url`,
-        }),
-        providesTags: ["Documents"],
-      }),
-      getChatSessions: build.query<
-        GetChatSessionsApiResponse,
-        GetChatSessionsApiArg
-      >({
-        query: (queryArg) => ({
-          url: `/documents/${queryArg.documentId}/chat-sessions`,
-        }),
-        providesTags: ["Chat"],
-      }),
-      getChatHistory: build.query<
-        GetChatHistoryApiResponse,
-        GetChatHistoryApiArg
-      >({
-        query: (queryArg) => ({ url: `/chat-sessions/${queryArg.sessionId}` }),
-        providesTags: ["Chat"],
-      }),
     }),
     overrideExisting: false,
   });
@@ -101,6 +101,18 @@ export type AskQuestionApiResponse = unknown;
 export type AskQuestionApiArg = {
   documentId: string;
   askRequest: AskRequest;
+};
+export type GetChatSessionsApiResponse =
+  /** status 200 List of chat sessions */ ChatSessionsResponse;
+export type GetChatSessionsApiArg = {
+  /** Document ID */
+  documentId: string;
+};
+export type GetChatHistoryApiResponse =
+  /** status 200 Chat history */ ChatHistoryResponse;
+export type GetChatHistoryApiArg = {
+  /** Session ID */
+  sessionId: string;
 };
 export type GetUploadUrlApiResponse =
   /** status 200 Upload URL and document metadata */ UploadUrlResponse;
@@ -123,6 +135,12 @@ export type DeleteDocumentApiArg = {
   /** Document ID */
   documentId: string;
 };
+export type GetDownloadUrlApiResponse =
+  /** status 200 Download URL and document metadata */ DownloadUrlResponse;
+export type GetDownloadUrlApiArg = {
+  /** Document ID */
+  documentId: string;
+};
 export type GetHealthApiResponse =
   /** status 200 Health status */ HealthResponse;
 export type GetHealthApiArg = void;
@@ -136,63 +154,9 @@ export type GetIndexingStatusApiResponse = unknown;
 export type GetIndexingStatusApiArg = {
   documentId: string;
 };
-export type GetDownloadUrlApiResponse =
-  /** status 200 Download URL and document metadata */ DownloadUrlResponse;
-export type GetDownloadUrlApiArg = {
-  /** Document ID */
-  documentId: string;
-};
-export type GetChatSessionsApiResponse =
-  /** status 200 List of chat sessions */ ChatSessionsResponse;
-export type GetChatSessionsApiArg = {
-  /** Document ID */
-  documentId: string;
-};
-export type GetChatHistoryApiResponse =
-  /** status 200 Chat history */ ChatHistoryResponse;
-export type GetChatHistoryApiArg = {
-  /** Session ID */
-  sessionId: string;
-};
 export type AskRequest = {
   question?: string;
-};
-export type UploadUrlResponse = {
-  documentId?: string;
-  uploadUrl?: string;
-  blobName?: string;
-  expiresAt?: string;
-};
-export type ErrorResponse = {
-  error?: string;
-};
-export type DocumentInfo = {
-  documentId?: string;
-  filename?: string;
-  size?: number | null;
-  uploadedAt?: string | null;
-};
-export type DocumentListResponse = {
-  documents?: DocumentInfo[];
-};
-export type DeleteDocumentResponse = {
-  message?: string;
-  documentId?: string;
-};
-export type HealthResponse = {
-  status?: string;
-  timestamp?: string;
-  version?: string;
-};
-export type HelloResponse = {
-  message?: string;
-  timestamp?: string;
-};
-export type DownloadUrlResponse = {
-  documentId?: string;
-  downloadUrl?: string;
-  filename?: string;
-  expiresAt?: string;
+  sessionId?: string;
 };
 export type ChatSessionSummary = {
   sessionId?: string;
@@ -219,29 +183,66 @@ export type TextPosition = {
 export type SourceReference = {
   page?: number;
   text?: string;
-  positions?: TextPosition[] | null;
+  positions?: TextPosition[];
 };
 export type ChatMessageDto = {
   role?: string;
   content?: string;
   timestamp?: string;
-  sources?: SourceReference[] | null;
+  sources?: SourceReference[];
 };
 export type ChatHistoryResponse = {
   sessionId?: string;
   documentId?: string;
   messages?: ChatMessageDto[];
 };
+export type ErrorResponse = {
+  error?: string;
+};
+export type UploadUrlResponse = {
+  documentId?: string;
+  uploadUrl?: string;
+  blobName?: string;
+  expiresAt?: string;
+};
+export type DocumentInfo = {
+  documentId?: string;
+  filename?: string;
+  size?: number | null;
+  uploadedAt?: string | null;
+};
+export type DocumentListResponse = {
+  documents?: DocumentInfo[];
+};
+export type DeleteDocumentResponse = {
+  message?: string;
+  documentId?: string;
+};
+export type DownloadUrlResponse = {
+  documentId?: string;
+  downloadUrl?: string;
+  filename?: string;
+  expiresAt?: string;
+};
+export type HealthResponse = {
+  status?: string;
+  timestamp?: string;
+  version?: string;
+};
+export type HelloResponse = {
+  message?: string;
+  timestamp?: string;
+};
 export const {
   useAskQuestionMutation,
+  useGetChatSessionsQuery,
+  useGetChatHistoryQuery,
   useGetUploadUrlMutation,
   useListDocumentsQuery,
   useGetDocumentQuery,
   useDeleteDocumentMutation,
+  useGetDownloadUrlQuery,
   useGetHealthQuery,
   useSayHelloQuery,
   useGetIndexingStatusQuery,
-  useGetDownloadUrlQuery,
-  useGetChatSessionsQuery,
-  useGetChatHistoryQuery,
 } = injectedRtkApi;

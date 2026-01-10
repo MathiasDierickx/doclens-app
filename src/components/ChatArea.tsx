@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { useGetDocumentQuery, useGetChatSessionsQuery, useGetChatHistoryQuery } from "@/store/api/generatedApi";
+import { useGetDocumentQuery, useGetChatSessionsQuery, useGetChatHistoryQuery, api } from "@/store/api/generatedApi";
 import { useAskQuestion, SourceReference } from "@/hooks/useAskQuestion";
+import { useDispatch } from "react-redux";
 
 // Re-export for use in other components
 export type { SourceReference } from "@/hooks/useAskQuestion";
@@ -16,6 +17,11 @@ interface Message {
   content: string;
   sources?: SourceReference[];
   isStreaming?: boolean;
+}
+
+interface StreamingMessage {
+  userMessage: Message;
+  assistantMessage: Message;
 }
 
 interface ChatAreaProps {
@@ -30,112 +36,150 @@ export function ChatArea({ documentId, onSourceClick }: ChatAreaProps) {
   });
 
   // Fetch existing chat sessions for this document
-  const { data: chatSessionsData } = useGetChatSessionsQuery({ documentId });
+  const { data: chatSessionsData, isFetching: isFetchingSessions } = useGetChatSessionsQuery({ documentId });
 
   // Get the most recent session if one exists
   const mostRecentSessionId = chatSessionsData?.sessions?.[0]?.sessionId;
 
   // Fetch chat history for the most recent session
-  const { data: chatHistoryData, isLoading: isLoadingHistory } = useGetChatHistoryQuery(
+  const { data: chatHistoryData, isFetching: isFetchingHistory } = useGetChatHistoryQuery(
     { sessionId: mostRecentSessionId! },
     { skip: !mostRecentSessionId }
   );
 
-  const [messages, setMessages] = useState<Message[]>([]);
+  // Streaming state - only for the current streaming message pair
+  const [streamingMessage, setStreamingMessage] = useState<StreamingMessage | null>(null);
   const [input, setInput] = useState("");
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
-  const streamingMessageIdRef = useRef<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const historyLoadedRef = useRef<string | null>(null);
+  const currentDocumentIdRef = useRef<string>(documentId);
+  const dispatch = useDispatch();
 
-  const { ask, isLoading, sessionId: newSessionId, setSessionId } = useAskQuestion({
+  // Convert history data to messages - this is derived from RTK Query
+  const historyMessages = useMemo((): Message[] => {
+    if (!chatHistoryData?.messages) return [];
+    return chatHistoryData.messages.map((msg, idx) => ({
+      id: `history-${chatHistoryData.sessionId}-${idx}`,
+      role: msg.role as "user" | "assistant",
+      content: msg.content || "",
+      sources: msg.sources?.map(s => ({
+        page: s.page ?? 0,
+        text: s.text ?? "",
+        positions: s.positions?.map(p => ({
+          pageNumber: p.pageNumber ?? 0,
+          boundingBox: p.boundingBox ? {
+            x: p.boundingBox.x ?? 0,
+            y: p.boundingBox.y ?? 0,
+            width: p.boundingBox.width ?? 0,
+            height: p.boundingBox.height ?? 0,
+          } : undefined,
+          charOffset: p.charOffset ?? 0,
+          charLength: p.charLength ?? 0,
+        })),
+      })),
+    }));
+  }, [chatHistoryData]);
+
+  // Combined messages: history + streaming (if any)
+  const messages = useMemo((): Message[] => {
+    if (streamingMessage) {
+      return [...historyMessages, streamingMessage.userMessage, streamingMessage.assistantMessage];
+    }
+    return historyMessages;
+  }, [historyMessages, streamingMessage]);
+
+  const { ask, isLoading, setSessionId } = useAskQuestion({
     onChunk: (chunk) => {
-      const id = streamingMessageIdRef.current;
-      if (!id) return;
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === id ? { ...m, content: m.content + chunk } : m
-        )
-      );
+      // Ignore if document changed during streaming
+      if (currentDocumentIdRef.current !== documentId) return;
+      setStreamingMessage((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          assistantMessage: {
+            ...prev.assistantMessage,
+            content: prev.assistantMessage.content + chunk,
+          },
+        };
+      });
     },
     onSources: (sources) => {
-      const id = streamingMessageIdRef.current;
-      if (!id) return;
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === id ? { ...m, sources } : m
-        )
-      );
+      if (currentDocumentIdRef.current !== documentId) return;
+      setStreamingMessage((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          assistantMessage: {
+            ...prev.assistantMessage,
+            sources,
+          },
+        };
+      });
     },
     onComplete: (result) => {
-      const id = streamingMessageIdRef.current;
-      if (!id) return;
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === id ? { ...m, isStreaming: false } : m
-        )
-      );
-      streamingMessageIdRef.current = null;
-      // Update the current session ID from the response
+      if (currentDocumentIdRef.current !== documentId) return;
+      // Mark as done streaming (but keep visible until cache is refreshed)
+      setStreamingMessage((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          assistantMessage: {
+            ...prev.assistantMessage,
+            isStreaming: false,
+          },
+        };
+      });
       if (result.sessionId) {
         setCurrentSessionId(result.sessionId);
+        // Invalidate the chat cache so history is refetched
+        // This will cause historyMessages to update, and we'll clear streamingMessage
+        dispatch(api.util.invalidateTags(["Chat"]));
       }
     },
     onError: (error) => {
-      const id = streamingMessageIdRef.current;
-      if (!id) return;
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === id
-            ? {
-                ...m,
-                content: m.content || `Error: ${error}`,
-                isStreaming: false,
-              }
-            : m
-        )
-      );
-      streamingMessageIdRef.current = null;
+      if (currentDocumentIdRef.current !== documentId) return;
+      setStreamingMessage((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          assistantMessage: {
+            ...prev.assistantMessage,
+            content: prev.assistantMessage.content || `Error: ${error}`,
+            isStreaming: false,
+          },
+        };
+      });
     },
   });
 
-  // Load chat history when it becomes available
+  // Sync session ID from history data
   useEffect(() => {
-    if (chatHistoryData?.messages && chatHistoryData.sessionId && historyLoadedRef.current !== chatHistoryData.sessionId) {
-      historyLoadedRef.current = chatHistoryData.sessionId;
-      const loadedMessages: Message[] = chatHistoryData.messages.map((msg, idx) => ({
-        id: `history-${chatHistoryData.sessionId}-${idx}`,
-        role: msg.role as "user" | "assistant",
-        content: msg.content || "",
-        // Load sources for assistant messages from history
-        sources: msg.sources?.map(s => ({
-          page: s.page ?? 0,
-          text: s.text ?? "",
-          positions: s.positions?.map(p => ({
-            pageNumber: p.pageNumber ?? 0,
-            boundingBox: p.boundingBox ? {
-              x: p.boundingBox.x ?? 0,
-              y: p.boundingBox.y ?? 0,
-              width: p.boundingBox.width ?? 0,
-              height: p.boundingBox.height ?? 0,
-            } : undefined,
-            charOffset: p.charOffset ?? 0,
-            charLength: p.charLength ?? 0,
-          })),
-        })),
-      }));
-      setMessages(loadedMessages);
+    if (chatHistoryData?.sessionId) {
       setCurrentSessionId(chatHistoryData.sessionId);
       setSessionId(chatHistoryData.sessionId);
     }
-  }, [chatHistoryData, setSessionId]);
+  }, [chatHistoryData?.sessionId, setSessionId]);
 
-  // Reset when document changes
+  // Clear streaming message when it appears in history (after refetch)
   useEffect(() => {
-    setMessages([]);
+    if (streamingMessage && !streamingMessage.assistantMessage.isStreaming && chatHistoryData?.messages) {
+      // Check if the streaming message content matches the last message in history
+      const lastHistoryMessage = chatHistoryData.messages[chatHistoryData.messages.length - 1];
+      if (lastHistoryMessage &&
+          lastHistoryMessage.role === "assistant" &&
+          lastHistoryMessage.content === streamingMessage.assistantMessage.content) {
+        // History now contains our streamed message, clear the streaming state
+        setStreamingMessage(null);
+      }
+    }
+  }, [chatHistoryData?.messages, streamingMessage]);
+
+  // Reset streaming state when document changes
+  useEffect(() => {
+    currentDocumentIdRef.current = documentId;
+    setStreamingMessage(null);
     setCurrentSessionId(null);
     setSessionId(null);
-    historyLoadedRef.current = null;
   }, [documentId, setSessionId]);
 
   // Auto-scroll to bottom when messages change
@@ -155,23 +199,23 @@ export function ChatArea({ documentId, onSourceClick }: ChatAreaProps) {
       content: question,
     };
 
-    const assistantMessageId = crypto.randomUUID();
     const assistantMessage: Message = {
-      id: assistantMessageId,
+      id: crypto.randomUUID(),
       role: "assistant",
       content: "",
       isStreaming: true,
     };
 
-    setMessages((prev) => [...prev, userMessage, assistantMessage]);
-    streamingMessageIdRef.current = assistantMessageId;
+    setStreamingMessage({ userMessage, assistantMessage });
     setInput("");
 
     // Pass existing session ID to maintain conversation context
     await ask(documentId, question, currentSessionId || undefined);
   };
 
-  if (isLoadingDoc || isLoadingHistory) {
+  const isLoadingChat = isLoadingDoc || isFetchingSessions || (mostRecentSessionId && isFetchingHistory);
+
+  if (isLoadingChat) {
     return (
       <div className="flex items-center justify-center h-full">
         <p className="text-muted-foreground">Loading...</p>
